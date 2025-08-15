@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/../freestnd-c-hdrs/include/",
+                "${workspaceFolder}",
+                "${workspaceFolder}/../limine-protocol/include/"
+            ],
+            "defines": [],
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64",
+            "compilerPath": "/bin/clang"
+        }
+    ],
+    "version": 4
+}
