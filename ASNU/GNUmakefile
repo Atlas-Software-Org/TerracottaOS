@@ -3,7 +3,7 @@
 
 # This is the name that our final executable will have.
 # Change as needed.
-override OUTPUT := kernel
+override OUTPUT := asnux64k.exe
 
 # Target architecture to build for. Default to x86_64.
 ARCH := x86_64

@@ -174,8 +174,9 @@ kernel: kernel-deps
 $(IMAGE_NAME).iso: limine/limine kernel
 	rm -rf iso_root
 	mkdir -p iso_root/boot
-	cp ASNU/bin-$(ARCH)/kernel iso_root/boot/
 	mkdir -p iso_root/boot/limine
+	mkdir -p iso_root/x64-bin
+	cp ASNU/bin-$(ARCH)/asnux64k.exe iso_root/x64-bin/
 	cp limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT
 ifeq ($(ARCH),x86_64)
@@ -228,8 +229,8 @@ else
 	PATH=$$PATH:/usr/sbin:/sbin sgdisk $(IMAGE_NAME).hdd -n 1:2048 -t 1:ef00
 endif
 	mformat -i $(IMAGE_NAME).hdd@@1M
-	mmd -i $(IMAGE_NAME).hdd@@1M ::/EFI ::/EFI/BOOT ::/boot ::/boot/limine
-	mcopy -i $(IMAGE_NAME).hdd@@1M ASNU/bin-$(ARCH)/kernel ::/boot
+	mmd -i $(IMAGE_NAME).hdd@@1M ::/EFI ::/EFI/BOOT ::/boot ::/x64-bin ::/boot/limine
+	mcopy -i $(IMAGE_NAME).hdd@@1M ASNU/bin-$(ARCH)/asnux64k.exe ::/x64-bin
 	mcopy -i $(IMAGE_NAME).hdd@@1M limine.conf ::/boot/limine
 ifeq ($(ARCH),x86_64)
 	mcopy -i $(IMAGE_NAME).hdd@@1M limine/limine-bios.sys ::/boot/limine
