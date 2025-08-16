@@ -66,6 +66,14 @@ SECTIONS
         *(COMMON)
     } :data
 
+    .tpam (NOLOAD) : {
+        . = ALIGN(0x1000);
+        TPAMStart = .;
+        *(.tpam)
+        . = . + 17*0x1000; /* 16 pages for allocations + 1 page for bitmap */
+        TPAMEnd = .;
+    } :data
+
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
     /DISCARD/ : {
         *(.eh_frame*)

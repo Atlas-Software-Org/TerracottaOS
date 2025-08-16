@@ -7,6 +7,8 @@
 #include <TerminalDriver/flanterm.h>
 #include <TerminalDriver/flanterm_backends/fb.h>
 #include <Serial/serial.h>
+#include <PMM/pmm.h>
+#include <VMM/vmm.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -19,6 +21,11 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
+    .revision = 0
+};
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_hhdm_request hhdm_request = {
+    .id = LIMINE_HHDM_REQUEST,
     .revision = 0
 };
 
@@ -55,6 +62,11 @@ void kmain(void) {
         hcf();
     }
 
+    if (hhdm_request.response == NULL
+     || hhdm_request.response->offset == 0) {
+        hcf();
+    }
+
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
     struct flanterm_context *ft_ctx = flanterm_fb_init(
@@ -77,6 +89,8 @@ void kmain(void) {
 
     serial_fwrite("ASNU Booted");
 
+    serial_fwrite("HHDM Offset: %p", (void*)hhdm_request.response->offset);
+
     /* Enumerate memory map entries and log them */
     serial_fwrite("Enumerating memory map entries");
 
@@ -97,6 +111,7 @@ void kmain(void) {
     uint64_t TotalMemory = 0;
     uint64_t TotalUsableMemory = 0;
     uint64_t TotalReservedMemory = 0;
+    uint64_t TotalPmmMemory = 0;
 
     for (int i = 0; i < memmap_request.response->entry_count; i++) {
         struct limine_memmap_entry *memmap_entry = memmap_request.response->entries[i];
@@ -105,6 +120,7 @@ void kmain(void) {
             if (memmap_entry->type == LIMINE_MEMMAP_USABLE) {
                 SecondLargestEntry = LargestEntry;
                 LargestEntry = i;
+                TotalPmmMemory = memmap_entry->length;
             }
         }
 
@@ -112,36 +128,37 @@ void kmain(void) {
         if (memmap_entry->type == LIMINE_MEMMAP_USABLE) {
             TotalUsableMemory += memmap_entry->length;
         }
-
-        serial_fwrite("Detected Entry At Offset %d\n\r\tBase: %p\n\r\tLength: %llu\n\r\tType: %s\n\r", i, memmap_entry->base, memmap_entry->length, MemMapTypes[memmap_entry->type]);
     }
 
     TotalReservedMemory = TotalMemory - TotalUsableMemory;
 
-    serial_fwrite("Finished enumerating memory map entries");
+    extern uint8_t TPAMStart[];
+    extern uint8_t TPAMEnd[];
 
-    serial_fwrite("Largest memory map entry is at index %d with length %llu", LargestEntry, memmap_request.response->entries[LargestEntry]->length);
-    serial_fwrite("Second largest memory map entry is at index %d with length %llu", SecondLargestEntry, memmap_request.response->entries[SecondLargestEntry]->length);
+    void* tpam_base = (void*)TPAMStart;
+    size_t tpam_size = TPAMEnd - TPAMStart;
+    pmm_init(1, tpam_base, tpam_size, (void*)((uint64_t)tpam_base + 4096*16), (tpam_size/0x1000)/8, TotalMemory, TotalUsableMemory, TotalReservedMemory);
+    
+    void* bitmap_base = (void*)((uint64_t)tpam_base + 16*0x1000);
+    memset(bitmap_base, 0, 4096);
 
-    serial_fwrite("Total memory: %llu bytes", TotalMemory);
-    serial_fwrite("Total usable memory: %llu bytes", TotalUsableMemory);
+    int result = mmap(0x3000, 0x3000, MMAP_PRESENT | MMAP_RW);
 
-    hcf();
+    const char* VmmResultStrings[] = {
+        "VMM_SUCCESS",
+        "VMM_ERR_NULL",
+        "VMM_ERR_NO_MEM",
+        "VMM_ERR_INVALID_PML4",
+        "VMM_ERR_INVALID_PDPT",
+        "VMM_ERR_INVALID_PD",
+        "VMM_ERR_ALREADY_MAPPED",
+        "VMM_ERR_NOT_MAPPED"
+    };
 
-    pmm_init(memmap_request.response->entries[LargestEntry]->base, memmap_request.response->entries[LargestEntry]->length, memmap_request.response->entries[SecondLargestEntry]->base, memmap_request.response->entries[SecondLargestEntry]->length, TotalMemory, TotalUsableMemory, TotalReservedMemory);
+    serial_fwrite("Result of mmap: %s", VmmResultStrings[result]);
 
-    serial_fwrite("Physical Memory Manager initialized");
-
-    serial_fwrite("Allocating 4KB of memory");
-    void* allocated_memory = kalloc(4096);
-    if (allocated_memory != NULL) {
-        serial_fwrite("Allocated 4KB of memory at address %p", allocated_memory);
-    } else {
-        serial_fwrite("Failed to allocate 4KB of memory");
-    }
-    serial_fwrite("Freeing allocated memory");
-    kfree(allocated_memory);
-    serial_fwrite("Memory freed");
+    *(uint8_t*)0x3000 = 0xAA;
+    serial_fwrite("Value at 0x3000: %02X", *(uint8_t*)0x3000);
 
     hcf();
 }
