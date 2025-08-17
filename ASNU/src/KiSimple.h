@@ -20,4 +20,10 @@ void outsw(uint16_t port, const void* addr, int count);
 void KiPanic(const char* __restrict string, int _halt);
 void DisplaySplash(int w, int h, char* text); /* w: width of display in characters, h: height of display in characters */
 
+void* PA2VA(void* phys_addr);
+void* VA2PA(void* virt_addr);
+
+uint64_t PA2VAu64(uint64_t phys_addr);
+uint64_t VA2PAu64(uint64_t virt_addr);
+
 #endif /* KISIMPLE_H */

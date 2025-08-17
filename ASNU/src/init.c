@@ -9,6 +9,10 @@
 #include <Serial/serial.h>
 #include <PMM/pmm.h>
 #include <VMM/vmm.h>
+#include <GDT/GDT.h>
+#include <IDT/idt.h>
+#include <Drivers/PS2Keyboard.h>
+#include <Drivers/AHCI.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -107,6 +111,8 @@ void kmain(void) {
 
     int LargestEntry = -1;
     int SecondLargestEntry = -1;
+    void* BaseLargestEntry = NULL;
+    void* BaseSecondLargestEntry = NULL;
 
     uint64_t TotalMemory = 0;
     uint64_t TotalUsableMemory = 0;
@@ -121,6 +127,8 @@ void kmain(void) {
                 SecondLargestEntry = LargestEntry;
                 LargestEntry = i;
                 TotalPmmMemory = memmap_entry->length;
+                BaseSecondLargestEntry = BaseLargestEntry;
+                BaseLargestEntry = (void*)memmap_entry->base;
             }
         }
 
@@ -128,41 +136,67 @@ void kmain(void) {
         if (memmap_entry->type == LIMINE_MEMMAP_USABLE) {
             TotalUsableMemory += memmap_entry->length;
         }
+
+        if (memmap_entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
+            serial_fwrite("Detected a bootloader reclaimable memory region at %p with length %llu bytes", (void*)memmap_entry->base, memmap_entry->length);
+        }
     }
 
-    TotalReservedMemory = TotalMemory - TotalUsableMemory;
+    BaseLargestEntry = (void*)((uint64_t)BaseLargestEntry + hhdm_request.response->offset);
+    BaseSecondLargestEntry = (void*)((uint64_t)BaseSecondLargestEntry + hhdm_request.response->offset);
 
-    extern uint8_t TPAMStart[];
-    extern uint8_t TPAMEnd[];
+    pmm_init(1, (uint64_t)BaseLargestEntry, memmap_request.response->entries[LargestEntry]->length, (uint64_t)BaseSecondLargestEntry, memmap_request.response->entries[SecondLargestEntry]->length, TotalMemory, TotalUsableMemory, TotalReservedMemory);
 
-    void* tpam_base = (void*)TPAMStart;
-    size_t tpam_size = TPAMEnd - TPAMStart;
-    pmm_init(1, tpam_base, tpam_size, (void*)((uint64_t)tpam_base + 4096*16), (tpam_size/0x1000)/8, TotalMemory, TotalUsableMemory, TotalReservedMemory);
-    
-    void* bitmap_base = (void*)((uint64_t)tpam_base + 16*0x1000);
-    memset(bitmap_base, 0, 4096);
+    vmm_init();
 
-    #define PHYS2VIRT(addr) ((void*)((uint64_t)(addr) + hhdm_request.response->offset))
-    #define VIRT2PHYS(addr) ((void*)((uint64_t)(addr) - hhdm_request.response->offset))
+    gdt_init();
 
-    void* addr = kalloc(4096);
-    if (addr == NULL) {
-        serial_fwrite("Failed to allocate memory for test page");
+    idt_init();
+
+    PciDevice_t ahci_dev = PciFindDeviceByClass(PCI_CLASS_MASS_STORAGE, 0x06);
+    if (ahci_dev.vendor_id != 0xFFFF && ahci_dev.device_id != 0xFFFF) {
+        serial_fwrite("Found AHCI device: %s (%04X:%04X)", PciGetDeviceName(&ahci_dev), ahci_dev.vendor_id, ahci_dev.device_id);
+        PciGetDeviceMMIORegion(&ahci_dev);
+        ahci_init(&ahci_dev);
+        if (ahci_dev.MMIOBase != NULL) {
+            serial_fwrite("AHCI MMIO Base: %p", ahci_dev.MMIOBase);
+            serial_fwrite("AHCI MMIO Size: %u bytes", ahci_dev.MMIOSize);
+            serial_fwrite("AHCI MMIO Bar Index: %u", ahci_dev.MMIOBarIndex);
+            serial_fwrite("AHCI Device Class: %s", PciGetDeviceManufacturer(&ahci_dev));
+            serial_fwrite("AHCI Device Name:    %s", PciGetDeviceName(&ahci_dev));
+        } else {
+            serial_fwrite("AHCI MMIO Base is NULL, cannot initialize AHCI.");
+        }
+    } else {
+        serial_fwrite("No AHCI device found.");
     }
-    uint64_t phys_addr = VIRT2PHYS(addr);
-    serial_fwrite("Allocated test page at virtual address: %p, physical address: %p", addr, (void*)phys_addr);
-    if (phys_addr == 0) {
-        serial_fwrite("Failed to get physical address for test page");
+
+    uint8_t secbuf[512];
+    ahci_read_sector(0, secbuf);
+
+    printk("ADDR | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\n\r");
+    for (int i = 0; i < 512; i += 16) {
+        printk("%04X | ", i);
+        for (int j = 0; j < 16; j++) {
+            if (i + j < 512) {
+                printk("%02X ", secbuf[i + j]);
+            } else {
+                printk("   ");
+            }
+        }
+        printk(" | ");
+        for (int j = 0; j < 16; j++) {
+            if (i + j < 512) {
+                if (secbuf[i + j] >= 32 && secbuf[i + j] <= 126) {
+                    printk("%c", secbuf[i + j]);
+                } else {
+                    printk(".");
+                }
+            } else {
+                printk(" ");
+            }
+        }
+        printk("\n\r");
     }
-    serial_fwrite("Test page physical address: %p", (void*)phys_addr);
-    serial_fwrite("Test page virtual address: %p", addr);
-    serial_fwrite("Test page physical address (virt to phys): %p", VIRT2PHYS(addr));
-    serial_fwrite("Test page virtual address (phys to virt): %p", PHYS2VIRT(phys_addr));
-
-    *(uint8_t*)addr = 0xAA;
-    serial_fwrite("Test page value: 0x%X", *(uint8_t*)phys_addr);
-
-    kfree(addr);
-
     hcf();
 }

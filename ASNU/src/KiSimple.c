@@ -154,3 +154,19 @@ void DisplaySplash(int w, int h, char* text) {
         printk("\x1b[90m%s\x1b[0m", info);
     }
 }
+
+void* PA2VA(void* phys_addr) {
+    return (void*)((uint64_t)phys_addr + 0xFFFF800000000000ULL);
+}
+
+void* VA2PA(void* virt_addr) {
+    return (void*)((uint64_t)virt_addr - 0xFFFF800000000000ULL);
+}
+
+uint64_t PA2VAu64(uint64_t phys_addr) {
+    return phys_addr + 0xFFFF800000000000ULL;
+}
+
+uint64_t VA2PAu64(uint64_t virt_addr) {
+    return virt_addr - 0xFFFF800000000000ULL;
+}

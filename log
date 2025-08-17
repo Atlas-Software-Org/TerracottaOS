@@ -1,0 +1,29 @@
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[8;042;160t0[2J[01;01H[2J[01;01H[8;056;240t0[2J[01;01HBdsDxe: loading Boot0002 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+[2J[01;01H[01;01H[2J[01;01H[01;01H[0000] ASNU Booted
+[0001] HHDM Offset: ffff800000000000
+[0002] Enumerating memory map entries
+[0003] Detected a bootloader reclaimable memory region at 900000 with length 15204352 bytes
+[0004] Detected a bootloader reclaimable memory region at 3b6c000 with length 131072 bytes
+[0005] Detected a bootloader reclaimable memory region at 6205000 with length 356352 bytes
+[0006] Detected a bootloader reclaimable memory region at 628f000 with length 19259392 bytes
+[0007] Detected a bootloader reclaimable memory region at 77ff000 with length 6492160 bytes
+[0008] Detected a bootloader reclaimable memory region at 7e3b000 with length 958464 bytes
+[0009] Detected a bootloader reclaimable memory region at 7f2b000 with length 184320 bytes
+[0010] Initializing Physical Memory Manager with the following parameters:
+[0011] PMM Virtual Memory: 0001
+[0012] Largest Base: ffff800003b8c000
+[0013] Largest Length: 40341504
+[0014] Second Largest Base: ffff80000216c000
+[0015] Second Largest Length: 27262976
+[0016] Total Memory: 13291257856
+[0017] Total Usable Memory: 85295104
+[0018] Total Reserved Memory: 0
+[0019] Initializing PMM structures
+[0020] Set p_base and b_base
+[0021] Setting up PMM file structure
+[0022] PMM file structure set
+[0023] Setting up bitmap file structure
+[0024] Bitmap file structure set
+[0025] Calculating bitmap size
+[0026] Bitmap size calculated: 1232 bytes

@@ -1,4 +1,7 @@
 #include "pmm.h"
+#include <KiSimple.h>
+#include <string.h>
+#include <stdint.h>
 
 typedef struct {
     uint64_t base;
@@ -17,28 +20,6 @@ typedef struct {
     BitmapFile *bitmap_file;
 } PmmFile;
 
-#define HHDM_BASE 0xFFFF800000000000ULL
-#define HHDM_LIMIT 0xFFFFFFFFFFFFFFFFULL
-
-static inline void* PhysToVirt(uint64_t paddr) {
-    if (paddr >= HHDM_BASE && paddr <= HHDM_LIMIT)
-        return (void*)paddr;
-
-    return (void*)(HHDM_BASE + paddr);
-}
-
-static inline uint64_t VirtToPhys(const void* vaddr) {
-    uint64_t addr = (uint64_t)vaddr;
-
-    if (addr < HHDM_BASE)
-        return addr;
-
-    if (addr >= HHDM_BASE && addr <= HHDM_LIMIT)
-        return addr - HHDM_BASE;
-
-    return 0;
-}
-
 PmmFile pmm_file_ins;
 PmmFile* pmm_file = &pmm_file_ins;
 
@@ -56,9 +37,10 @@ void pmm_init(int pmm_virt_mem, uint64_t largest_base, uint64_t largest_length, 
     serial_fwrite("Total Usable Memory: %llu", total_usable_memory);
     serial_fwrite("Total Reserved Memory: %llu", total_reserved_memory);
     serial_fwrite("Initializing PMM structures");
-    uint64_t p_base = pmm_virt_mem ? VirtToPhys((void*)largest_base) : largest_base;
-    uint64_t b_base = pmm_virt_mem ? VirtToPhys((void*)second_largest_base) : second_largest_base;
-    serial_fwrite("Set p_base and b_pase");
+
+    uint64_t p_base = largest_base;
+    uint64_t b_base = second_largest_base;
+    serial_fwrite("Set p_base and b_base");
 
     serial_fwrite("Setting up PMM file structure");
     pmm_file->base = p_base;
@@ -78,40 +60,40 @@ void pmm_init(int pmm_virt_mem, uint64_t largest_base, uint64_t largest_length, 
     serial_fwrite("Calculating bitmap size");
     uint64_t bitmap_size = ((largest_length / 4096) + 7) / 8;
     pmm_file->bitmap_length = bitmap_size; // in bytes
-    memset((void*)PhysToVirt(pmm_file->bitmap_base), 0, bitmap_size);
     pmm_file->bitmap_base = b_base;
     pmm_file->bitmap_file->length = bitmap_size;
+    memset((void*)pmm_file->bitmap_base, 0, bitmap_size);
     serial_fwrite("Bitmap size calculated: %llu bytes", bitmap_size);
 
-    memset(second_largest_base, 0, second_largest_length);
-    memset(PhysToVirt(pmm_file->bitmap_base), 0, pmm_file->bitmap_length);
+    memset((void*)second_largest_base, 0, second_largest_length);
+    memset((void*)pmm_file->bitmap_base, 0, pmm_file->bitmap_length);
 }
 
 void BitmapSetBit(uint64_t index) {
     if (index >= pmm_file->bitmap_length * 8) return;
     uint64_t byte_index = index / 8;
     uint8_t bit_index = index % 8;
-    ((uint8_t*)PhysToVirt(pmm_file->bitmap_base))[byte_index] |= (uint8_t)(1u << bit_index);
+    ((uint8_t*)pmm_file->bitmap_base)[byte_index] |= (uint8_t)(1u << bit_index);
 }
 
 void BitmapClearBit(uint64_t index) {
     if (index >= pmm_file->bitmap_length * 8) return;
     uint64_t byte_index = index / 8;
     uint8_t bit_index = index % 8;
-    ((uint8_t*)PhysToVirt(pmm_file->bitmap_base))[byte_index] &= (uint8_t)~(1u << bit_index);
+    ((uint8_t*)pmm_file->bitmap_base)[byte_index] &= (uint8_t)~(1u << bit_index);
 }
 
 void* kalloc(size_t size) {
     if (size == 0) return NULL;
     uint64_t pages_needed = (size + 4095) / 4096;
 
-    uint8_t* bm = (uint8_t*)PhysToVirt(pmm_file->bitmap_base);
+    uint8_t* bm = (uint8_t*)pmm_file->bitmap_base;
     for (uint64_t i = 0; i < pmm_file->bitmap_length * 8; i++) {
         uint64_t byte_index = i / 8;
         uint8_t bit_index = i % 8;
         if ((bm[byte_index] & (uint8_t)(1u << bit_index)) == 0) {
             bm[byte_index] |= (uint8_t)(1u << bit_index);
-            return PhysToVirt(pmm_file->base + (i * 4096));
+            return (void*)(pmm_file->base + (i * 4096));
         }
     }
     return NULL;
@@ -119,7 +101,7 @@ void* kalloc(size_t size) {
 
 void* palloc() {
     uint64_t index = UINT64_MAX;
-    uint8_t* bm = (uint8_t*)PhysToVirt(pmm_file->bitmap_base);
+    uint8_t* bm = (uint8_t*)pmm_file->bitmap_base;
     for (uint64_t i = 0; i < pmm_file->bitmap_length * 8; i++) {
         uint64_t byte_index = i / 8;
         uint8_t bit_index = i % 8;
@@ -131,13 +113,13 @@ void* palloc() {
     }
 
     if (index == UINT64_MAX) return NULL; // No free pages found
-    return PhysToVirt(pmm_file->base + (index * 4096)); // use index, not i
+    return (void*)(pmm_file->base + (index * 4096));
 }
 
 void kfree(void* ptr) {
     if (!ptr) return;
 
-    uint64_t phys = VirtToPhys(ptr);
+    uint64_t phys = (uint64_t)ptr;
     if (phys < pmm_file->base || phys >= pmm_file->base + pmm_file->length)
         return;
 
