@@ -142,23 +142,27 @@ void kmain(void) {
     void* bitmap_base = (void*)((uint64_t)tpam_base + 16*0x1000);
     memset(bitmap_base, 0, 4096);
 
-    int result = mmap(0x3000, 0x3000, MMAP_PRESENT | MMAP_RW);
+    #define PHYS2VIRT(addr) ((void*)((uint64_t)(addr) + hhdm_request.response->offset))
+    #define VIRT2PHYS(addr) ((void*)((uint64_t)(addr) - hhdm_request.response->offset))
 
-    const char* VmmResultStrings[] = {
-        "VMM_SUCCESS",
-        "VMM_ERR_NULL",
-        "VMM_ERR_NO_MEM",
-        "VMM_ERR_INVALID_PML4",
-        "VMM_ERR_INVALID_PDPT",
-        "VMM_ERR_INVALID_PD",
-        "VMM_ERR_ALREADY_MAPPED",
-        "VMM_ERR_NOT_MAPPED"
-    };
+    void* addr = kalloc(4096);
+    if (addr == NULL) {
+        serial_fwrite("Failed to allocate memory for test page");
+    }
+    uint64_t phys_addr = VIRT2PHYS(addr);
+    serial_fwrite("Allocated test page at virtual address: %p, physical address: %p", addr, (void*)phys_addr);
+    if (phys_addr == 0) {
+        serial_fwrite("Failed to get physical address for test page");
+    }
+    serial_fwrite("Test page physical address: %p", (void*)phys_addr);
+    serial_fwrite("Test page virtual address: %p", addr);
+    serial_fwrite("Test page physical address (virt to phys): %p", VIRT2PHYS(addr));
+    serial_fwrite("Test page virtual address (phys to virt): %p", PHYS2VIRT(phys_addr));
 
-    serial_fwrite("Result of mmap: %s", VmmResultStrings[result]);
+    *(uint8_t*)addr = 0xAA;
+    serial_fwrite("Test page value: 0x%X", *(uint8_t*)phys_addr);
 
-    *(uint8_t*)0x3000 = 0xAA;
-    serial_fwrite("Value at 0x3000: %02X", *(uint8_t*)0x3000);
+    kfree(addr);
 
     hcf();
 }

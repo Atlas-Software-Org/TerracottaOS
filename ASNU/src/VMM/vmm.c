@@ -3,9 +3,6 @@
 #define HHDM_BASE 0xFFFF800000000000ULL
 #define HHDM_LIMIT 0xFFFFFFFFFFFFFFFFULL
 
-#define HHDM_BASE 0xFFFF800000000000ULL
-#define HHDM_LIMIT 0xFFFFFFFFFFFFFFFFULL
-
 static inline void* PHYS_TO_VIRT(uint64_t paddr) {
     if (paddr >= HHDM_BASE && paddr <= HHDM_LIMIT)
         return (void*)paddr;

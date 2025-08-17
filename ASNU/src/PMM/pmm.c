@@ -135,8 +135,12 @@ void* palloc() {
 }
 
 void kfree(void* ptr) {
+    if (!ptr) return;
+
     uint64_t phys = VirtToPhys(ptr);
-    if (phys < pmm_file->base || phys >= pmm_file->base + pmm_file->length) return;
-    uint64_t index = (phys - pmm_file->base) / 4096;
-    BitmapClearBit(index);
+    if (phys < pmm_file->base || phys >= pmm_file->base + pmm_file->length)
+        return;
+
+    BitmapClearBit((phys - pmm_file->base) / 4096);
+    memset(ptr, 0, 4096);
 }

@@ -48,3 +48,18 @@ clone_repo_commit \
 set +x
 
 printf "\nDependencies obtained successfully!\n"
+
+git clone --depth 1 https://codeberg.org/mintsuki/flanterm src/TerminalDriver/flanterm
+
+mv src/TerminalDriver/flanterm/* src/TerminalDriver/
+
+rm -rf src/TerminalDriver/flanterm
+
+rm -rf src/TerminalDriver/LICENSE*
+rm -rf src/TerminalDriver/README*
+
+mv src/TerminalDriver/src/* .
+
+rm -rf src/TerminalDriver/src
+
+cp -r src/TerminalDriver/../../temp-src/ftctx_setup.c src/TerminalDriver/ftctx_setup.c
