@@ -1,4 +1,5 @@
 #include "idt.h"
+#include <Serial/serial.h>
 
 typedef struct {
 	uint16_t    isr_low;
@@ -48,10 +49,10 @@ void exception_handler(int exception, uint64_t err_code) {
         while (1);
     }
 
-    printk("\x1b[1;91m{ PANIC }\tIDT Exception occurred\n\r\t\t%s\n\r\x1b[0m", error_codes[exception]);
+    serial_fwrite("\x1b[1;91m{ PANIC }\tIDT Exception occurred\n\r\t\t%s\n\r\x1b[0m", error_codes[exception]);
 
     if (exception == 14) {
-        printk("Exception is a #PAGEFAULT\n\r");
+        serial_fwrite("Exception is a #PAGEFAULT\n\r");
 
 		uint64_t CR2 = 0;
         asm volatile (
@@ -63,16 +64,16 @@ void exception_handler(int exception, uint64_t err_code) {
             : "memory"
         );
 
-		printk("CR2: 0x%016X\n\r", CR2);
+		serial_fwrite("CR2: 0x%016X\n\r", CR2);
 		
         PrintPageFaultError(err_code);
 
         if (CR2 == 0 || (CR2 >= 0x0000000000000000 && CR2 < 0x1000)) {
-            printk("CR2 is null or too low. Cannot recover.\n\rHalting...\n\r");
+            serial_fwrite("CR2 is null or too low. Cannot recover.\n\rHalting...\n\r");
         } else {
-            printk("Attempting to identity-map faulting address: %p\n\r", (void*)CR2);
+            serial_fwrite("Attempting to identity-map faulting address: %p\n\r", (void*)CR2);
             mmap((void*)CR2, (void*)CR2, PAGE_PRESENT | PAGE_RW);
-            printk("Mapped. Returning to continue execution.\n\r");
+            serial_fwrite("Mapped. Returning to continue execution.\n\r");
             return;
         }
     }

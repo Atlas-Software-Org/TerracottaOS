@@ -1,4 +1,5 @@
 #include "../PIT.h"
+#include <sched/scheduler.h>
 
 static volatile uint64_t PitTicks = 0;
 
@@ -6,6 +7,8 @@ __attribute__((interrupt)) void pit_handler(int *__unused) {
 	(void)__unused;
 
 	PitTicks++;
+
+	scheduler_tick();
 
 	idt_pic_send_eoi(0);
 }

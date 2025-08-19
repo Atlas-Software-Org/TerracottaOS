@@ -5,7 +5,7 @@
 ARCH := x86_64
 
 # Default user QEMU flags. These are appended to the QEMU command calls.
-QEMUFLAGS := -m 6G -serial stdio
+QEMUFLAGS := -m 6G -serial stdio -no-shutdown -no-reboot
 
 override IMAGE_NAME := TerracottaOS-1.0.0
 
@@ -51,7 +51,7 @@ run-hdd-x86_64: ovmf/ovmf-code-$(ARCH).fd $(IMAGE_NAME).hdd
 		-device ahci,id=ahci \
 		-drive id=disk0,file=TerracottaOS-1.0.0.hdd,format=raw,if=none \
 		-device ide-hd,drive=disk0,bus=ahci.0 \
-		-d int -no-reboot -no-shutdown -serial stdio
+		-no-reboot -no-shutdown -serial stdio
 
 .PHONY: run-aarch64
 run-aarch64: ovmf/ovmf-code-$(ARCH).fd $(IMAGE_NAME).iso

@@ -12,7 +12,7 @@
 #include <GDT/GDT.h>
 #include <IDT/idt.h>
 #include <Drivers/PS2Keyboard.h>
-#include <Drivers/AHCI.h>
+#include <sched/scheduler.h>
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -151,52 +151,48 @@ void kmain(void) {
 
     gdt_init();
 
+    pit_init(100);
+
     idt_init();
 
-    PciDevice_t ahci_dev = PciFindDeviceByClass(PCI_CLASS_MASS_STORAGE, 0x06);
-    if (ahci_dev.vendor_id != 0xFFFF && ahci_dev.device_id != 0xFFFF) {
-        serial_fwrite("Found AHCI device: %s (%04X:%04X)", PciGetDeviceName(&ahci_dev), ahci_dev.vendor_id, ahci_dev.device_id);
-        PciGetDeviceMMIORegion(&ahci_dev);
-        ahci_init(&ahci_dev);
-        if (ahci_dev.MMIOBase != NULL) {
-            serial_fwrite("AHCI MMIO Base: %p", ahci_dev.MMIOBase);
-            serial_fwrite("AHCI MMIO Size: %u bytes", ahci_dev.MMIOSize);
-            serial_fwrite("AHCI MMIO Bar Index: %u", ahci_dev.MMIOBarIndex);
-            serial_fwrite("AHCI Device Class: %s", PciGetDeviceManufacturer(&ahci_dev));
-            serial_fwrite("AHCI Device Name:    %s", PciGetDeviceName(&ahci_dev));
-        } else {
-            serial_fwrite("AHCI MMIO Base is NULL, cannot initialize AHCI.");
-        }
-    } else {
-        serial_fwrite("No AHCI device found.");
-    }
+    scheduler_init();
 
-    uint8_t secbuf[512];
-    ahci_read_sector(0, secbuf);
+    void test_sched();
+    test_sched();
 
-    printk("ADDR | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\n\r");
-    for (int i = 0; i < 512; i += 16) {
-        printk("%04X | ", i);
-        for (int j = 0; j < 16; j++) {
-            if (i + j < 512) {
-                printk("%02X ", secbuf[i + j]);
-            } else {
-                printk("   ");
-            }
-        }
-        printk(" | ");
-        for (int j = 0; j < 16; j++) {
-            if (i + j < 512) {
-                if (secbuf[i + j] >= 32 && secbuf[i + j] <= 126) {
-                    printk("%c", secbuf[i + j]);
-                } else {
-                    printk(".");
-                }
-            } else {
-                printk(" ");
-            }
-        }
-        printk("\n\r");
-    }
     hcf();
+}
+
+void proc0() {
+    for (int i = 0; i < 10000000; i++) {
+        if (i % 1000 == 0) {
+            serial_fwrite("Proc0 counted to: %d\n\r", i);
+        }
+    }
+    serial_fwrite("Proc0 finished counting.\n\r");
+}
+
+void proc1() {
+    for (int i = 0; i < 10000000; i++) {
+        if (i % 1000 == 0) {
+            serial_fwrite("Proc1 counted to: %d\n\r", i);
+        }
+    }
+    serial_fwrite("Proc1 finished counting.\n\r");
+}
+
+void test_sched() {
+    uint64_t stack0_base = (uint64_t)palloc();
+    uint64_t stack0_size = 4096;
+    uint64_t heap0_base = (uint64_t)palloc();
+    uint64_t heap0_size = 4096;
+    uint64_t stack1_base = (uint64_t)palloc();
+    uint64_t stack1_size = 4096;
+    uint64_t heap1_base = (uint64_t)palloc();
+    uint64_t heap1_size = 4096;
+    Procedure* proc0_ptr = create_proc(proc0, 0, 0, 0, 0, stack0_base, stack0_size, heap0_base, heap0_size);
+    Procedure* proc1_ptr = create_proc(proc1, 0, 0, 0, 0, stack1_base, stack1_size, heap1_base, heap1_size);
+
+    register_proc(proc0_ptr);
+    register_proc(proc1_ptr);
 }
