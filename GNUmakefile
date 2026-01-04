@@ -2,7 +2,7 @@
 
 ARCH := x86_64
 
-QEMUFLAGS := -m 6G -serial stdio -M q35
+QEMUFLAGS := -m 6G #-serial stdio
 
 override IMAGE_NAME := terra-$(ARCH)
 

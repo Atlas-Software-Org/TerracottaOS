@@ -1,0 +1,13 @@
+#ifndef CCTYPE
+#define CCTYPE 1
+
+static inline bool isspace(char c) {
+    return c == ' '  ||
+           c == '\t' ||
+           c == '\n' ||
+           c == '\v' ||
+           c == '\f' ||
+           c == '\r';
+}
+
+#endif

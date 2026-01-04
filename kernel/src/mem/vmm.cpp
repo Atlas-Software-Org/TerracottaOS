@@ -20,14 +20,24 @@ static inline uint64_t get_pdpt_index(uint64_t va) { return (va >> 30) & 0x1FF; 
 static inline uint64_t get_pd_index(uint64_t va)   { return (va >> 21) & 0x1FF; }
 static inline uint64_t get_pt_index(uint64_t va)   { return (va >> 12) & 0x1FF; }
 
-static uint64_t* ensure_table_exists(uint64_t* parent, uint64_t index) {
+static uint64_t* ensure_table_exists(uint64_t* parent, uint64_t index, bool user) {
     if (parent[index] & PAGE_PRESENT) {
-        return reinterpret_cast<uint64_t*>(pa_to_va(parent[index] & ~0xFFF));
+        uint64_t* table = reinterpret_cast<uint64_t*>(pa_to_va(parent[index] & ~0xFFF));
+        if (user && !(parent[index] & PAGE_USER)) {
+            parent[index] |= PAGE_USER;
+        }
+        return table;
     }
     
     uint64_t* new_table = reinterpret_cast<uint64_t*>(valloc(1));
     mem::memset(new_table, 0, 0x1000);
-    parent[index] = va_to_pa(reinterpret_cast<uint64_t>(new_table)) | PAGE_PRESENT | PAGE_RW;
+    
+    uint64_t flags = PAGE_PRESENT | PAGE_RW;
+    if (user) {
+        flags |= PAGE_USER;
+    }
+    
+    parent[index] = va_to_pa(reinterpret_cast<uint64_t>(new_table)) | flags;
     
     return new_table;
 }
@@ -109,21 +119,30 @@ bool is_mapped(void* vaddr) {
 }
 
 uint64_t mmap(void* paddr, void* vaddr, size_t npages, uint64_t attributes) {
+    printf("mmap(%p, %p, %zu, %zu);\n\r", paddr, vaddr, npages, attributes);
     uint64_t va = reinterpret_cast<uint64_t>(vaddr);
     uint64_t pa = reinterpret_cast<uint64_t>(paddr);
     uint64_t first_entry = 0;
 
+    bool is_user = (va < 0x0000800000000000ULL);
+
     for (size_t i = 0; i < npages; i++, va += 0x1000, pa += 0x1000) {
         uint64_t* pml4 = reinterpret_cast<uint64_t*>(current_PML4);
-        uint64_t* pdpt = ensure_table_exists(pml4, get_pml4_index(va));
-        uint64_t* pd   = ensure_table_exists(pdpt, get_pdpt_index(va));
-        uint64_t* pt   = ensure_table_exists(pd,   get_pd_index(va));
-        
-        uint64_t leaf_flags = attributes & 0x8000000000000FFF;
-        pt[get_pt_index(va)] = (pa & ~0xFFF) | leaf_flags;
-        
+        uint64_t pml4_idx = get_pml4_index(va);
+
+        uint64_t* pdpt = ensure_table_exists(pml4, pml4_idx, is_user);
+        uint64_t* pd   = ensure_table_exists(pdpt, get_pdpt_index(va), is_user);
+        uint64_t* pt   = ensure_table_exists(pd, get_pd_index(va), is_user);
+
+        uint64_t flags = PAGE_PRESENT | PAGE_RW;
+        if (is_user) {
+            flags |= PAGE_USER;
+        }
+
+        pt[get_pt_index(va)] = (pa & ~0xFFF) | flags;
+
         if (i == 0) first_entry = pt[get_pt_index(va)];
-        
+
         invlpg(va);
     }
 

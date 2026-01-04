@@ -54,4 +54,21 @@
 // #define PCI_CFG_VERBOSE
 #undef PCI_CFG_VERBOSE
 
+/*
+	Configure whether the VMM prints errors
+*/
+#define VMM_ERR_VERBOSE
+// #undef VMM_ERR_VERBOSE
+
+/*
+	Configure nested exception threshold
+*/
+#define EXCEPTIONS_CFG_NESTING_THRESHOLD 3
+
+/*
+	Configure whether the debugger runs
+*/
+#define EXCEPTIONS_CFG_RUN_DEBUGGER
+// #undef EXCEPTIONS_CFG_RUN_DEBUGGER
+
 #endif

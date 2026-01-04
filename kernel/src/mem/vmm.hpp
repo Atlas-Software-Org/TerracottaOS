@@ -23,6 +23,8 @@ void free(void* ptr, size_t npages);
 uint64_t mmap(void* paddr, void* vaddr, size_t npages, uint64_t attributes);
 void munmap(void* vaddr, size_t npages);
 
+bool is_mapped(void* vaddr);
+
 }
 
 #endif /* VMM_HPP */

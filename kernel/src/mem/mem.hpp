@@ -13,7 +13,7 @@ enum PageAttributes {
 	PAGE_RW = 0x2,
 	PAGE_USER = 0x4,
 	PAGE_PCD = 0x10,
-	PAGE_NX = (1ULL << 63)
+	PAGE_SIZE_2MB = 0x80,
 };
 
 namespace mem {
@@ -36,6 +36,8 @@ namespace mem {
 		void* create_pagetable();
 		void destroy_pagetable(void* pml4_ptr);
 		uint64_t fetch_default_pagetable();
+
+		bool is_mapped(void* vaddr);
 	}
 
 	namespace heap {

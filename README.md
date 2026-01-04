@@ -3,7 +3,7 @@
 
 Terrakernel is a hybrid x86_64 kernel.
 
-During the development of TK the kernel will always be on version v1.0-rc0.
+During the development of TK the kernel will always be on version v1.0-rc1.
 Terra is the operating system I'm planning to use terrakernel for.
 
 # TODO

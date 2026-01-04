@@ -25,12 +25,16 @@ uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address) {
 }
 
 void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
-    void* _addr = (void*)((uint64_t)addr & ~(0xFFF));
-    uint64_t pages = (len + 0xFFF) / 0x1000;
-
-    mem::vmm::mmap(_addr, _addr, pages, PAGE_PRESENT | PAGE_RW);
-
-    return (void*)addr;
+    uint64_t virt_addr = mem::vmm::pa_to_va((uint64_t)addr);
+    
+    if (!mem::vmm::is_mapped((void*)(virt_addr & ~0xFFF))) {
+        void* phys_aligned = (void*)((uint64_t)addr & ~(0xFFF));
+        void* virt_aligned = (void*)(virt_addr & ~(0xFFF));
+        uint64_t pages = (len + 0xFFF) / 0x1000;
+        mem::vmm::mmap(phys_aligned, virt_aligned, pages, PAGE_PRESENT | PAGE_RW);
+    }
+    
+    return (void*)virt_addr;
 }
 
 void uacpi_kernel_unmap(void *addr, uacpi_size len) {

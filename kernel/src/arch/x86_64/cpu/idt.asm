@@ -12,27 +12,56 @@ idt_load:
 %macro idt_exception_noerr 1
 global idt_exception_noerr_%1
 idt_exception_noerr_%1:
-    mov rdi, rsp
-    mov rsi, %1
-    xor rdx, rdx
-    mov r8, cr2
-    mov r9, cr3
-    call exception_handler
-    iretq
+    push 0
+    push %1
+    jmp exception_common
 %endmacro
 
 %macro idt_exception_err 1
 global idt_exception_err_%1
 idt_exception_err_%1:
-    mov rdi, rsp
-    mov rsi, %1
-    mov rdx, [rsp + 24]
-    mov r8, cr2
-    mov r9, cr3
-    call exception_handler
-    add rsp, 8
-    iretq
+    push %1
+    jmp exception_common
 %endmacro
+
+exception_common:
+    push r15
+    push r14
+    push r13
+    push r12
+    push r11
+    push r10
+    push r9
+    push r8
+    push rdi
+    push rsi
+    push rbp
+    push rdx
+    push rcx
+    push rbx
+    push rax
+    
+    mov rdi, rsp
+    call exception_handler
+    
+    pop rax
+    pop rbx
+    pop rcx
+    pop rdx
+    pop rbp
+    pop rsi
+    pop rdi
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+    pop r12
+    pop r13
+    pop r14
+    pop r15
+    
+    add rsp, 16
+    iretq
 
 idt_exception_noerr 0
 idt_exception_noerr 1
@@ -55,7 +84,7 @@ idt_exception_err 17
 idt_exception_noerr 18
 idt_exception_noerr 19
 idt_exception_noerr 20
-idt_exception_noerr 21
+idt_exception_err 21
 idt_exception_noerr 22
 idt_exception_noerr 23
 idt_exception_noerr 24
@@ -64,7 +93,7 @@ idt_exception_noerr 26
 idt_exception_noerr 27
 idt_exception_noerr 28
 idt_exception_noerr 29
-idt_exception_noerr 30
+idt_exception_err 30
 idt_exception_noerr 31
 
 section .rodata
@@ -90,7 +119,7 @@ exception_stub_table:
     dq idt_exception_noerr_18
     dq idt_exception_noerr_19
     dq idt_exception_noerr_20
-    dq idt_exception_noerr_21
+    dq idt_exception_err_21
     dq idt_exception_noerr_22
     dq idt_exception_noerr_23
     dq idt_exception_noerr_24
@@ -99,5 +128,5 @@ exception_stub_table:
     dq idt_exception_noerr_27
     dq idt_exception_noerr_28
     dq idt_exception_noerr_29
-    dq idt_exception_noerr_30
+    dq idt_exception_err_30
     dq idt_exception_noerr_31

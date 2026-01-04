@@ -18,6 +18,8 @@ void flush_events();
 void set_event_callback(event_callback_fn callback, void* userdata);
 void clear_event_callback();
 
+void user_ps2k_poll();
+
 }
 
 #endif

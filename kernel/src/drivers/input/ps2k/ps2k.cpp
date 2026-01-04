@@ -119,6 +119,11 @@ static scan_state current_scan_state = scan_state::NORMAL;
 
 __attribute__((interrupt))
 static void ps2k_interrupt_handler(void*) {
+	if (!(arch::x86_64::io::inb(PS2_STATUS_PORT) & 0x01)) {
+		arch::x86_64::cpu::idt::send_eoi(1);
+		return;
+	}
+
     uint8_t scancode = arch::x86_64::io::inb(PS2_DATA_PORT);
     
     if (scancode == 0xE0) {
@@ -163,6 +168,53 @@ static void ps2k_interrupt_handler(void*) {
     }
     
     arch::x86_64::cpu::idt::send_eoi(1);
+}
+
+void user_ps2k_poll() {
+	if (!(arch::x86_64::io::inb(PS2_STATUS_PORT) & 0x01)) {
+		return;
+	}
+
+    uint8_t scancode = arch::x86_64::io::inb(PS2_DATA_PORT);
+    
+    if (scancode == 0xE0) {
+        current_scan_state = scan_state::EXTENDED_E0;
+        return;
+    }
+    
+    if (scancode == 0xE1) {
+        current_scan_state = scan_state::EXTENDED_E1;
+        return;
+    }
+    
+    bool pressed = !(scancode & 0x80);
+    scancode &= 0x7F;
+    
+    keycode kc = KEY_NONE;
+    if (current_scan_state == scan_state::EXTENDED_E0) {
+        kc = extended_scancode_to_keycode[scancode];
+        current_scan_state = scan_state::NORMAL;
+    } else if (current_scan_state == scan_state::EXTENDED_E1) {
+        current_scan_state = scan_state::NORMAL;
+        arch::x86_64::cpu::idt::send_eoi(1);
+        return;
+    } else {
+        kc = scancode_to_keycode[scancode];
+    }
+    
+    if (kc != KEY_NONE) {
+        key_event ev;
+        ev.keycode = kc;
+        ev.state = pressed ? key_state::PRESSED : key_state::RELEASED;
+        ev.timestamp = drivers::timers::pit::ns_elapsed_time();
+        
+        buffer_push(evbuf, ev);
+        
+#ifdef PS2K_CFG_DEBUG
+        printf("[ps2k] Key event: code=0x%04X state=%s\n",
+               kc, pressed ? "PRESSED" : "RELEASED");
+#endif
+    }
 }
 
 static ssize_t ps2k_read(void* buf, size_t count) {

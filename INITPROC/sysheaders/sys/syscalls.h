@@ -2,6 +2,7 @@
 #define SYSCALLS_H 1
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define num_sys_read      0
 #define num_sys_write     1
@@ -29,11 +30,11 @@
 typedef unsigned int   mode_t;
 typedef unsigned int   uid_t;
 typedef unsigned int   gid_t;
-typedef long           off_t;
+typedef uint64_t           off_t;
 typedef signed long long ssize_t;
 
-static inline long syscall0(long n) {
-    long ret;
+static inline uint64_t syscall0(uint64_t n) {
+    uint64_t ret;
     asm volatile (
         "syscall"
         : "=a"(ret)
@@ -43,8 +44,8 @@ static inline long syscall0(long n) {
     return ret;
 }
 
-static inline long syscall1(long n, long a1) {
-    long ret;
+static inline uint64_t syscall1(uint64_t n, uint64_t a1) {
+    uint64_t ret;
     asm volatile (
         "syscall"
         : "=a"(ret)
@@ -54,8 +55,8 @@ static inline long syscall1(long n, long a1) {
     return ret;
 }
 
-static inline long syscall2(long n, long a1, long a2) {
-    long ret;
+static inline uint64_t syscall2(uint64_t n, uint64_t a1, uint64_t a2) {
+    uint64_t ret;
     asm volatile (
         "syscall"
         : "=a"(ret)
@@ -65,8 +66,8 @@ static inline long syscall2(long n, long a1, long a2) {
     return ret;
 }
 
-static inline long syscall3(long n, long a1, long a2, long a3) {
-    long ret;
+static inline uint64_t syscall3(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3) {
+    uint64_t ret;
     asm volatile (
         "syscall"
         : "=a"(ret)
@@ -76,9 +77,9 @@ static inline long syscall3(long n, long a1, long a2, long a3) {
     return ret;
 }
 
-static inline long syscall4(long n, long a1, long a2, long a3, long a4) {
-    long ret;
-    register long r10 asm("r10") = a4;
+static inline uint64_t syscall4(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4) {
+    uint64_t ret;
+    register uint64_t r10 asm("r10") = a4;
     asm volatile (
         "syscall"
         : "=a"(ret)
@@ -88,10 +89,10 @@ static inline long syscall4(long n, long a1, long a2, long a3, long a4) {
     return ret;
 }
 
-static inline long syscall5(long n, long a1, long a2, long a3, long a4, long a5) {
-    long ret;
-    register long r10 asm("r10") = a4;
-    register long r8  asm("r8")  = a5;
+static inline uint64_t syscall5(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+    uint64_t ret;
+    register uint64_t r10 asm("r10") = a4;
+    register uint64_t r8  asm("r8")  = a5;
     asm volatile (
         "syscall"
         : "=a"(ret)
@@ -101,11 +102,11 @@ static inline long syscall5(long n, long a1, long a2, long a3, long a4, long a5)
     return ret;
 }
 
-static inline long syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) {
-    long ret;
-    register long r10 asm("r10") = a4;
-    register long r8  asm("r8")  = a5;
-    register long r9  asm("r9")  = a6;
+static inline uint64_t syscall6(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6) {
+    uint64_t ret;
+    register uint64_t r10 asm("r10") = a4;
+    register uint64_t r8  asm("r8")  = a5;
+    register uint64_t r9  asm("r9")  = a6;
     asm volatile (
         "syscall"
         : "=a"(ret)
@@ -116,7 +117,7 @@ static inline long syscall6(long n, long a1, long a2, long a3, long a4, long a5,
 }
 
 static inline int sys_open(const char* path, int flags, mode_t mode) {
-    return syscall3(num_sys_open, (long)path, flags, mode);
+    return syscall3(num_sys_open, (uint64_t)path, flags, mode);
 }
 
 static inline int sys_close(int fd) {
@@ -124,19 +125,19 @@ static inline int sys_close(int fd) {
 }
 
 static inline ssize_t sys_read(int fd, void* buf, size_t count) {
-    return syscall3(num_sys_read, fd, (long)buf, count);
+    return syscall3(num_sys_read, fd, (uint64_t)buf, count);
 }
 
 static inline ssize_t sys_write(int fd, const void* buf, size_t count) {
-    return syscall3(num_sys_write, fd, (long)buf, count);
+    return syscall3(num_sys_write, fd, (uint64_t)buf, count);
 }
 
 static inline ssize_t sys_pread(int fd, void* buf, size_t count, off_t offset) {
-    return syscall4(num_sys_pread, fd, (long)buf, count, offset);
+    return syscall4(num_sys_pread, fd, (uint64_t)buf, count, offset);
 }
 
 static inline ssize_t sys_pwrite(int fd, const void* buf, size_t count, off_t offset) {
-    return syscall4(num_sys_pwrite, fd, (long)buf, count, offset);
+    return syscall4(num_sys_pwrite, fd, (uint64_t)buf, count, offset);
 }
 
 static inline off_t sys_lseek(int fd, off_t offset, int whence) {
@@ -144,7 +145,7 @@ static inline off_t sys_lseek(int fd, off_t offset, int whence) {
 }
 
 static inline int sys_stat(int fd, void* buf) {
-    return syscall2(num_sys_stat, fd, (long)buf);
+    return syscall2(num_sys_stat, fd, (uint64_t)buf);
 }
 
 static inline int sys_chmod(int fd, mode_t mode) {
@@ -168,39 +169,39 @@ static inline int sys_datasync() {
 }
 
 static inline int sys_mkdir(const char* path, mode_t mode) {
-    return syscall2(num_sys_mkdir, (long)path, mode);
+    return syscall2(num_sys_mkdir, (uint64_t)path, mode);
 }
 
 static inline int sys_chdir(const char* path) {
-    return syscall1(num_sys_chdir, (long)path);
+    return syscall1(num_sys_chdir, (uint64_t)path);
 }
 
 static inline int sys_link(const char* oldpath, const char* newpath) {
-    return syscall2(num_sys_link, (long)oldpath, (long)newpath);
+    return syscall2(num_sys_link, (uint64_t)oldpath, (uint64_t)newpath);
 }
 
 static inline int sys_unlink(const char* path) {
-    return syscall1(num_sys_unlink, (long)path);
+    return syscall1(num_sys_unlink, (uint64_t)path);
 }
 
 static inline int sys_rename(const char* oldpath, const char* newpath) {
-    return syscall2(num_sys_rename, (long)oldpath, (long)newpath);
+    return syscall2(num_sys_rename, (uint64_t)oldpath, (uint64_t)newpath);
 }
 
 static inline int sys_symlink(const char* target, const char* linkpath) {
-    return syscall2(num_sys_symlink, (long)target, (long)linkpath);
+    return syscall2(num_sys_symlink, (uint64_t)target, (uint64_t)linkpath);
 }
 
 static inline int sys_readlink(const char* path, char* buf, size_t bufsize) {
-    return syscall3(num_sys_readlink, (long)path, (long)buf, bufsize);
+    return syscall3(num_sys_readlink, (uint64_t)path, (uint64_t)buf, bufsize);
 }
 
 static inline int sys_rmdir(const char* path) {
-    return syscall1(num_sys_rmdir, (long)path);
+    return syscall1(num_sys_rmdir, (uint64_t)path);
 }
 
 static inline int sys_getdents(int fd, void* buf, size_t bufsize) {
-    return syscall3(num_sys_getdents, fd, (long)buf, bufsize);
+    return syscall3(num_sys_getdents, fd, (uint64_t)buf, bufsize);
 }
 
 #endif

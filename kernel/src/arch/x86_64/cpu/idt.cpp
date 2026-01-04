@@ -2,6 +2,8 @@
 #include <arch/x86_64/cpu/idt.hpp>
 #include <cstdio>
 #include <mem/mem.hpp>
+#include <dbg/dbg.hpp>
+#include <config.hpp>
 
 bool idt_set_vectors[256] = {false};
 
@@ -42,7 +44,7 @@ void fix_exceptions(
 			Log::infof("Breakpoint Exception handled");
 			printf("Breakpoint at RIP: 0x%llX\n", rip);
 			while (1) {
-				if (arch::x86_64::io::inb(0x3F8) & 1) break; // Wait for input to continue
+				if (arch::x86_64::io::inb(0x3F8) & 1) break;
 			}
 			break;
 		}
@@ -85,38 +87,174 @@ void fix_exceptions(
 	}
 }
 
-extern "C" void exception_handler(
-	uint64_t rip,
-	uint64_t exception_vector,
-	uint64_t error_code,
-	uint64_t cr2,
-	uint64_t cr3
-) {
-	Log::errf(
-		"EXCEPTION OCCURED!\n\r"
-		"EXCEPTION_TYPE= %s\n\r"
-		"EXCEPTION_RIP= 0x%llX\n\r"
-		"EXCEPTION_VECTOR= %d\n\r"
-		"EXCEPTION_ERRCODE= %d\n\r"
-		"EXCEPTION_CR2= 0x%llX\n\r"
-		"EXCEPTION_CR3= 0x%llX\n\r\n\r"
-		"%s(%d)\n\r",
-		exception_names[exception_vector],
-		rip, exception_vector, error_code,
-		cr2, cr3, exception_names[exception_vector],
-		error_code
-	);
+void decode_pf_err(uint64_t err) {
+    const char *cause;
+    const char *access;
+    const char *mode;
 
-	if (!is_solvable(exception_vector)) asm volatile ("cli;hlt;");
+    if (err & (1 << 0))
+        cause = "a protection violation (page was present)";
+    else
+        cause = "a non-present page";
 
-	Log::infof("Exception is solvable");
-	fix_exceptions(
-		exception_vector,
-		error_code,
-		rip,
-		cr2,
-		cr3
-	);
+    if (err & (1 << 4))
+        access = "an instruction fetch";
+    else if (err & (1 << 1))
+        access = "a write";
+    else
+        access = "a read";
+
+    if (err & (1 << 2))
+        mode = "user mode";
+    else
+        mode = "supervisor mode";
+
+    printf("Page Fault: caused by %s during %s in %s.\n",
+           cause, access, mode);
+
+    if (err & (1 << 3))
+        printf("  - Reserved bit violation\n");
+
+    if (err & (1 << 5))
+        printf("  - Protection key violation\n");
+
+    if (err & (1 << 6))
+        printf("  - Shadow stack violation\n");
+
+    if (err & (1 << 15))
+        printf("  - SGX access control violation\n");
+}
+
+#include <drivers/input/ps2k/ps2k.hpp>
+#include <drivers/input/ps2k/ps2k_key_event.hpp>
+#include <drivers/input/ps2k/ps2k_keycodes.hpp>
+
+void clr() {
+	printf("\033[2J\033[H");
+}
+
+uint64_t __rip = 0;
+
+void debugger_event_handler(key_event& ev, void*) {
+	switch (ev.keycode) {
+		case KEY_F1:
+			clr();
+			dbg::memview::print_memory_contents_at(__rip, 100, 0);
+			break;
+		case KEY_F2:
+			clr();
+			dbg::disasm::disasm_at_memory(__rip, 100, 0);
+			break;
+		case KEY_F3:
+			clr();
+			dbg::stacktrace::stacktrace(__rip, 5, 0);
+			break;
+		default:
+			clr();
+			dbg::disasm::disasm_at_memory(__rip, 100, 0);
+			break;
+	}
+}
+
+void debugger(uint64_t rip) {
+	__rip = rip;
+
+	drivers::input::ps2k::clear_event_callback();
+	drivers::input::ps2k::set_event_callback((event_callback_fn)debugger_event_handler, nullptr);
+
+	clr();
+	dbg::disasm::disasm_at_memory(__rip, 100, 0);
+
+	while (true) drivers::input::ps2k::user_ps2k_poll();
+}
+
+uint64_t nesting_table[31] = {0};
+
+struct exception_frame {
+    uint64_t rax, rbx, rcx, rdx, rbp, rsi, rdi;
+    uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
+    uint64_t exception_vector;
+    uint64_t error_code;
+    uint64_t rip;
+    uint64_t cs;
+    uint64_t rflags;
+    uint64_t rsp;
+    uint64_t ss;
+} __attribute__((packed));
+
+extern "C" void exception_handler(exception_frame* frame) {
+    uint64_t cr0, cr2, cr3, cr4;
+    asm volatile("mov %%cr0, %0" : "=r"(cr0));
+    asm volatile("mov %%cr2, %0" : "=r"(cr2));
+    asm volatile("mov %%cr3, %0" : "=r"(cr3));
+    asm volatile("mov %%cr4, %0" : "=r"(cr4));
+    
+    uint16_t ds, es, fs, gs;
+    asm volatile("mov %%ds, %0" : "=r"(ds));
+    asm volatile("mov %%es, %0" : "=r"(es));
+    asm volatile("mov %%fs, %0" : "=r"(fs));
+    asm volatile("mov %%gs, %0" : "=r"(gs));
+    
+    uint8_t vec = frame->exception_vector;
+    uint64_t err = frame->error_code;
+    
+    printf("\n\033[91m========== EXCEPTION! ==========\033[0m\n");
+    printf("check_exception v=%02x e=%04llx i=0 cpl=%d IP=%04llx:%016llx pc=%016llx CR2=%016llx\n",
+           vec, err, (uint32_t)(frame->cs & 3), frame->cs, frame->rip, frame->rip, cr2);
+    
+    printf("RAX= %016llx RBX= %016llx RCX= %016llx RDX= %016llx\n",
+           frame->rax, frame->rbx, frame->rcx, frame->rdx);
+    printf("RSI= %016llx RDI= %016llx RBP= %016llx RSP= %016llx\n",
+           frame->rsi, frame->rdi, frame->rbp, frame->rsp);
+    printf("R8=  %016llx R9=  %016llx R10= %016llx R11= %016llx\n",
+           frame->r8, frame->r9, frame->r10, frame->r11);
+    printf("R12= %016llx R13= %016llx R14= %016llx R15= %016llx\n",
+           frame->r12, frame->r13, frame->r14, frame->r15);
+    
+    printf("RIP= %016llx RFL= %08llx [", frame->rip, frame->rflags);
+    printf("%c", (frame->rflags & (1 << 11)) ? 'O' : '-');
+    printf("%c", (frame->rflags & (1 << 10)) ? 'D' : '-');
+    printf("%c", (frame->rflags & (1 << 9))  ? 'I' : '-');
+    printf("%c", (frame->rflags & (1 << 7))  ? 'S' : '-');
+    printf("%c", (frame->rflags & (1 << 6))  ? 'Z' : '-');
+    printf("%c", (frame->rflags & (1 << 4))  ? 'A' : '-');
+    printf("%c", (frame->rflags & (1 << 2))  ? 'P' : '-');
+    printf("%c", (frame->rflags & (1 << 0))  ? 'C' : '-');
+    printf("] CPL=%d\n", (uint32_t)(frame->cs & 3));
+    
+    printf("ES=  %04x DS=  %04x SS=  %04llx CS=  %04llx FS=  %04x GS=  %04x\n",
+           es, ds, frame->ss, frame->cs, fs, gs);
+    
+    printf("CR0= %08llx CR2= %016llx CR3= %016llx CR4= %08llx\n",
+           cr0, cr2, cr3, cr4);
+    
+    printf("Exception: %s (vector=%d, error=%llx)\n", 
+           exception_names[vec], vec, err);
+
+	nesting_table[vec]++;
+	if (nesting_table[vec] == EXCEPTIONS_CFG_NESTING_THRESHOLD) {
+		decode_pf_err(err);
+		printf("\033[91mNesting threshold reached at %d %s exceptions...\033[0m", EXCEPTIONS_CFG_NESTING_THRESHOLD, exception_names[vec]);
+		asm ("cli;hlt");
+	}
+
+	if (vec == 0xE) {
+		decode_pf_err(err);
+#ifdef EXCEPTIONS_CFG_RUN_DEBUGGER
+		debugger(frame->rip);
+#endif
+	}
+
+	nesting_table[vec]--;
+    
+    printf("\033[91m========== END OF MSG ==========\033[0m\n");
+
+    if (!is_solvable(vec)) {
+        asm volatile ("cli; hlt");
+    }
+
+    Log::infof("Exception is solvable");
+    fix_exceptions(vec, err, frame->rip, cr2, cr3);
 }
 
 #define PIC1		0x20
@@ -188,6 +326,10 @@ void irq_set_mask(uint8_t irq) {
 	arch::x86_64::io::outb(port, value);
 }
 
+__attribute__((interrupt)) void int80_handler(void*) {
+	printf("INT 80h");
+}
+
 void initialise() {
 	for (int i = 0; i < 0x1F; i++) {
 		set_descriptor(i, exception_stub_table[i], 0x8E);
@@ -203,6 +345,8 @@ void initialise() {
 	pic_remap(0x20, 0x28);
 
 	irq_clear_mask(0);
+
+	set_descriptor(0x80, (uint64_t)int80_handler, 0xEE);
 
 	load_idt();
 }	
@@ -241,3 +385,4 @@ void send_eoi(uint8_t irq) {
 }
 
 }
+
