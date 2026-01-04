@@ -55,20 +55,20 @@ Check [BUILD_INSTRUCTIONS.md](https://github.com/Atlas-Software-Org/Terrakernel/
 ### How many LoC?
 
 ```x86asm
-     138 text files.
-     135 unique files.
-       3 files ignored.
+     240 text files.
+     218 unique files.
+       6 files ignored.
 
-github.com/AlDanial/cloc v 1.98  T=0.45 s (298.7 files/s, 94528.5 lines/s)
+github.com/AlDanial/cloc v 1.98  T=0.88 s (246.9 files/s, 93383.6 lines/s)
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                               23           4477           1229          21235
-C/C++ Header                    83           1483           2071           7466
-C++                             24            847              2           3705
-Assembly                         4             20              0            165
+C                               54           6535           4142          36356
+C/C++ Header                   134           3347          11638          15073
+C++                             25            973              3           4137
+Assembly                         4             24              0            190
 CMake                            1              0              0             21
 -------------------------------------------------------------------------------
-SUM:                           135           6827           3302          32592 (32540 old)
+SUM:                           218          10879          15783          55777 (32592 old)
 -------------------------------------------------------------------------------
 ```
