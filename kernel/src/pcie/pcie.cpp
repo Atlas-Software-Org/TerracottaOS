@@ -137,13 +137,13 @@ uint64_t initialise() {
     
     num_allocations = (mcfg->header.length - sizeof(mcfg_table)) / sizeof(mcfg_allocation);
 
-#ifdef PCI_CFG_VERBOSE
+#ifdef CONFIG_PCI_VERBOSE
     printf("MCFG table at %p, length=%u\n", mcfg, mcfg->header.length);
     printf("Got %u MCFG allocations\n\r", num_allocations);
 #endif
     
     for (uint32_t i = 0; i < num_allocations; i++) {
-#ifdef PCI_CFG_VERBOSE
+#ifdef CONFIG_PCI_VERBOSE
         printf("  [%u] base=0x%016lx seg=%u bus=%u-%u\n",
                i, mcfg->allocations[i].base_address,
                mcfg->allocations[i].segment_group,
@@ -152,11 +152,11 @@ uint64_t initialise() {
 #endif
     }
 
-#ifdef PCI_CFG_VERBOSE
+#ifdef CONFIG_PCI_VERBOSE
     printf("Enumerating PCIe devices...\n\r");
 #endif
     enumerate_devices();
-#ifdef PCI_CFG_VERBOSE
+#ifdef CONFIG_PCI_VERBOSE
     printf("Found %lu PCIe devices\n\r", num_devs);
 #endif
     

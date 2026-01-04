@@ -143,7 +143,7 @@ uint64_t initialise() {
                 pci_device* dev = pci_enumerate_helper(bus, device, function);
                 bool found = pci_add_device(dev);
                 if (found) {
-#ifdef PCI_CFG_VERBOSE
+#ifdef CONFIG_PCI_VERBOSE
                     printf("Enumerated device %d:%d.%d [%s] %s (%02x / %02x / %02x) [%04X:%04X]\n\r", bus, device, function, found ? "Device present" : "Empty slot", get_type(dev), dev->class_code, dev->subclass, dev->prog_if, dev->vendor_id, dev->device_id);
                     printf("BARs: %8X %8X %8X %8X %8X %8X\n\r", dev->bars[0], dev->bars[1], dev->bars[2], dev->bars[3], dev->bars[4], dev->bars[5]);
 #endif

@@ -6,16 +6,17 @@ qemu-system-x86
 build-essential
 binutils
 tar
+python3
 ```
 
 To install them use:
 ```bash
-sudo apt install qemu-system-x86 build-essential binutils tar mtools
+sudo apt install qemu-system-x86 build-essential binutils tar mtools python3
 ```
 
-Before running the kernel make sure to prepare initrd.img:
+Before building the kernel make sure to get the git submodules:
 ```bash
-make initrd
+git submodule update --init
 ```
 
 To run the OS use the following command:

@@ -3,6 +3,21 @@
 
 #include <cstdint>
 
+struct exception_frame {
+    uint64_t rax, rbx, rcx, rdx, rbp, rsi, rdi;
+    uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
+    uint64_t exception_vector;
+    uint64_t error_code;
+    uint64_t rip;
+    uint64_t cs;
+    uint64_t rflags;
+    uint64_t rsp;
+    uint64_t ss;
+
+    uint64_t cr0, cr2, cr3, cr4;
+    uint16_t ds, es, fs, gs;
+} __attribute__((packed));
+
 typedef struct {
 	uint16_t limit;
 	uint64_t base;

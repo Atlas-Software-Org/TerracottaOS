@@ -1,0 +1,58 @@
+menu "Test Menu"
+
+config SCHED_USE_SAME_PML4
+    bool "Make the schedule uses the same PML4 as the kernel"
+    default y
+endmenu
+
+menu "PS2 Keyboard"
+
+config PS2K_INITIAL_BUF_SIZE
+    int "Initial buffer size"
+    default 512
+
+config PS2K_DEBUG
+    bool "Debugging"
+    default n
+
+config PS2K_ALLOC_BUF_MALLOC
+    bool "Use malloc over Valloc"
+    default y
+
+config PS2K_ALLOC_BUF
+    bool "Allocate buffer"
+    default y
+
+config PS2K_DROP_EVENTS_ON_FAILURE_OR_OVERFLOW
+    bool "Drop events on failiure"
+    default n
+
+endmenu
+
+menu "ACPI"
+
+config ACPI_VERBOSE
+    bool "Verbose Logging"
+    default y
+
+endmenu
+
+menu "PCI"
+
+config PCI_VERBOSE
+    bool "Verbose Logging"
+    default n
+
+endmenu
+
+menu "IDT"
+
+menu "Exceptions"
+
+config EXCEPTIONS_NESTING_THRESHOLD
+	int "Exceptions nesting threshold"
+	default 3
+
+endmenu
+
+endmenu

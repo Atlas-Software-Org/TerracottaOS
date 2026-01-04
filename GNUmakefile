@@ -83,10 +83,10 @@ kernel/.deps-obtained:
 	./kernel/get-deps
 
 .PHONY: kernel
-kernel: kernel/.deps-obtained
+kernel: kernel/.deps-obtained genconfig
 	$(MAKE) -C kernel
 
-$(IMAGE_NAME).iso: limine/limine kernel
+$(IMAGE_NAME).iso: limine/limine kernel initrd
 	@rm -rf iso_root
 	@mkdir -p iso_root/boot
 	@cp -v kernel/bin-$(ARCH)/kernel iso_root/boot/
@@ -174,3 +174,11 @@ clean:
 distclean:
 	$(MAKE) -C kernel distclean
 	rm -rf iso_root *.iso *.hdd kernel-deps limine ovmf
+
+.PHONY: menuconfig
+menuconfig:
+	python3 utils/Kconfiglib/menuconfig.py
+
+.PHONY: genconfig
+genconfig:
+	python3 utils/Kconfiglib/genconfig.py --header-path kernel/src/config.hpp

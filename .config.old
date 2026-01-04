@@ -1,0 +1,39 @@
+
+#
+# Test Menu
+#
+CONFIG_SCHED_USE_SAME_PML4=y
+# end of Test Menu
+
+#
+# PS2 Keyboard
+#
+CONFIG_PS2K_INITIAL_BUF_SIZE=512
+# CONFIG_PS2K_DEBUG is not set
+CONFIG_PS2K_ALLOC_BUF_MALLOC=y
+CONFIG_PS2K_ALLOC_BUF=y
+# CONFIG_PS2K_DROP_EVENTS_ON_FAILURE_OR_OVERFLOW is not set
+# end of PS2 Keyboard
+
+#
+# ACPI
+#
+CONFIG_ACPI_VERBOSE=y
+# end of ACPI
+
+#
+# PCI
+#
+# CONFIG_PCI_VERBOSE is not set
+# end of PCI
+
+#
+# IDT
+#
+
+#
+# Exceptions
+#
+CONFIG_EXCEPTIONS_NESTING_THRESHOLD=3
+# end of Exceptions
+# end of IDT

@@ -1,0 +1,3 @@
+mainmenu "TerraKernel build configuration"
+
+source "kernel/Kconfig"

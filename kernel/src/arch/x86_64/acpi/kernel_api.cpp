@@ -48,13 +48,13 @@ void uacpi_kernel_unmap(void *addr, uacpi_size len) {
 #ifndef UACPI_FORMATTED_LOGGING
 void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* s) {
     (void)lvl;
-#ifdef ACPI_CFG_VERBOSE
+#ifdef CONFIG_ACPI_VERBOSE
     printf("[ \x1b[95mUACPI\x1b[0m ] %s", s);
 #endif
 }
 #else
 void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* s, ...) {
-#ifdef ACPI_CFG_VERBOSE
+#ifdef CONFIG_ACPI_VERBOSE
     printf("[ UACPI ] ");
     va_list va;
     va_start(va, s);

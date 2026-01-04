@@ -11,8 +11,8 @@
 
 namespace drivers::input::ps2k {
 
-#ifdef PS2K_CFG_ALLOC_BUF
-static key_event fifo_buffer[PS2K_CFG_INITIAL_BUF_SIZE];
+#ifdef CONFIG_PS2K_ALLOC_BUF
+static key_event fifo_buffer[CONFIG_PS2K_INITIAL_BUF_SIZE];
 #endif
 
 struct event_buffer {
@@ -38,7 +38,7 @@ static inline bool buffer_is_full(const event_buffer& buf) {
 
 static bool buffer_push(event_buffer& buf, const key_event& ev) {
     if (buffer_is_full(buf)) {
-#ifdef PS2K_CFG_DEBUG
+#ifdef CONFIG_PS2K_DEBUG
         printf("[ps2k] Warning: event buffer overflow, %s\n", buf.drop_events == true ? "dropping event" : "flushing buffer");
 #endif
 
@@ -161,7 +161,7 @@ static void ps2k_interrupt_handler(void*) {
         
         buffer_push(evbuf, ev);
         
-#ifdef PS2K_CFG_DEBUG
+#ifdef CONFIG_PS2K_DEBUG
         printf("[ps2k] Key event: code=0x%04X state=%s\n",
                kc, pressed ? "PRESSED" : "RELEASED");
 #endif
@@ -210,7 +210,7 @@ void user_ps2k_poll() {
         
         buffer_push(evbuf, ev);
         
-#ifdef PS2K_CFG_DEBUG
+#ifdef CONFIG_PS2K_DEBUG
         printf("[ps2k] Key event: code=0x%04X state=%s\n",
                kc, pressed ? "PRESSED" : "RELEASED");
 #endif
@@ -259,12 +259,12 @@ static int ps2k_ioctl(unsigned long request, void* arg) {
 }
 
 void initialise() {
-#ifdef PS2K_CFG_ALLOC_BUF
+#ifdef CONFIG_PS2K_ALLOC_BUF
     evbuf.events = fifo_buffer;
-    evbuf.capacity = PS2K_CFG_INITIAL_BUF_SIZE;
+    evbuf.capacity = CONFIG_PS2K_INITIAL_BUF_SIZE;
 #else
-    evbuf.capacity = PS2K_CFG_INITIAL_BUF_SIZE;
-#ifdef PS2K_CFG_ALLOC_BUF_MALLOC
+    evbuf.capacity = CONFIG_PS2K_INITIAL_BUF_SIZE;
+#ifdef CONFIG_PS2K_ALLOC_BUF_MALLOC
     evbuf.events = static_cast<key_event*>(
         mem::heap::malloc(evbuf.capacity * sizeof(key_event))
     );
@@ -274,7 +274,7 @@ void initialise() {
 #endif
 #endif
 
-#ifdef PS2K_CFG_DROP_EVENTS_ON_FAILURE_OR_OVERFLOW
+#ifdef CONFIG_PS2K_DROP_EVENTS_ON_FAILURE_OR_OVERFLOW
 	evbuf.drop_events = true;
 #else
 	evbuf.drop_events = false;

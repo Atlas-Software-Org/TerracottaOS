@@ -1,5 +1,5 @@
 /limine
-/ovmf
 *.iso
 *.hdd
-OVMF*
+edk2-ovmf
+*.config

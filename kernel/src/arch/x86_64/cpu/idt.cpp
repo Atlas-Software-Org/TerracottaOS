@@ -133,68 +133,96 @@ void clr() {
 	printf("\033[2J\033[H");
 }
 
-uint64_t __rip = 0;
+exception_frame __frame;
+uint64_t cr0, cr2, cr3, cr4;
+uint16_t es, fs, gs, ds;
 
-void debugger_event_handler(key_event& ev, void*) {
+void print_err(exception_frame* frame) {
+	uint8_t vec = frame->exception_vector;
+    uint64_t err = frame->error_code;
+    
+    printf("\n\033[91m========== EXCEPTION! ==========\033[0m\n");
+    printf("check_exception v=%02x e=%04llx i=0 cpl=%d IP=%04llx:%016llx pc=%016llx CR2=%016llx\n",
+           vec, err, (uint32_t)(frame->cs & 3), frame->cs, frame->rip, frame->rip, cr2);
+    
+    printf("RAX= %016llx RBX= %016llx RCX= %016llx RDX= %016llx\n",
+           frame->rax, frame->rbx, frame->rcx, frame->rdx);
+    printf("RSI= %016llx RDI= %016llx RBP= %016llx RSP= %016llx\n",
+           frame->rsi, frame->rdi, frame->rbp, frame->rsp);
+    printf("R8=  %016llx R9=  %016llx R10= %016llx R11= %016llx\n",
+           frame->r8, frame->r9, frame->r10, frame->r11);
+    printf("R12= %016llx R13= %016llx R14= %016llx R15= %016llx\n",
+           frame->r12, frame->r13, frame->r14, frame->r15);
+    
+    printf("RIP= %016llx RFL= %08llx [", frame->rip, frame->rflags);
+    printf("%c", (frame->rflags & (1 << 11)) ? 'O' : '-');
+    printf("%c", (frame->rflags & (1 << 10)) ? 'D' : '-');
+    printf("%c", (frame->rflags & (1 << 9))  ? 'I' : '-');
+    printf("%c", (frame->rflags & (1 << 7))  ? 'S' : '-');
+    printf("%c", (frame->rflags & (1 << 6))  ? 'Z' : '-');
+    printf("%c", (frame->rflags & (1 << 4))  ? 'A' : '-');
+    printf("%c", (frame->rflags & (1 << 2))  ? 'P' : '-');
+    printf("%c", (frame->rflags & (1 << 0))  ? 'C' : '-');
+    printf("] CPL=%d\n", (uint32_t)(frame->cs & 3));
+    
+    printf("ES=  %04x DS=  %04x SS=  %04llx CS=  %04llx FS=  %04x GS=  %04x\n",
+           es, ds, frame->ss, frame->cs, fs, gs);
+    
+    printf("CR0= %08llx CR2= %016llx CR3= %016llx CR4= %08llx\n",
+           cr0, cr2, cr3, cr4);
+    
+    printf("Exception: %s (vector=%d, error=%llx)\n", 
+           exception_names[vec], vec, err);
+}
+
+void debugger_event_handler(key_event& ev, exception_frame* frame) {
 	switch (ev.keycode) {
 		case KEY_F1:
 			clr();
-			dbg::memview::print_memory_contents_at(__rip, 100, 0);
+			print_err(frame);
 			break;
 		case KEY_F2:
 			clr();
-			dbg::disasm::disasm_at_memory(__rip, 100, 0);
+			dbg::memview::print_memory_contents_at(frame->rip, 100, 0);
 			break;
 		case KEY_F3:
 			clr();
-			dbg::stacktrace::stacktrace(__rip, 5, 0);
+			dbg::disasm::disasm_at_memory(frame->rip, 100, 0);
+			break;
+		case KEY_F4:
+			clr();
+			dbg::stacktrace::stacktrace(frame->rip, 5, 0);
 			break;
 		default:
 			clr();
-			dbg::disasm::disasm_at_memory(__rip, 100, 0);
+			dbg::disasm::disasm_at_memory(frame->rip, 100, 0);
 			break;
 	}
 }
 
-void debugger(uint64_t rip) {
-	__rip = rip;
-
+void debugger(exception_frame* frame) {
 	drivers::input::ps2k::clear_event_callback();
-	drivers::input::ps2k::set_event_callback((event_callback_fn)debugger_event_handler, nullptr);
+	drivers::input::ps2k::set_event_callback((event_callback_fn)debugger_event_handler, frame);
 
-	clr();
-	dbg::disasm::disasm_at_memory(__rip, 100, 0);
+	//clr();
+	//dbg::disasm::disasm_at_memory(frame->rip, 100, 0);
 
 	while (true) drivers::input::ps2k::user_ps2k_poll();
 }
 
 uint64_t nesting_table[31] = {0};
 
-struct exception_frame {
-    uint64_t rax, rbx, rcx, rdx, rbp, rsi, rdi;
-    uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
-    uint64_t exception_vector;
-    uint64_t error_code;
-    uint64_t rip;
-    uint64_t cs;
-    uint64_t rflags;
-    uint64_t rsp;
-    uint64_t ss;
-} __attribute__((packed));
-
 extern "C" void exception_handler(exception_frame* frame) {
-    uint64_t cr0, cr2, cr3, cr4;
     asm volatile("mov %%cr0, %0" : "=r"(cr0));
     asm volatile("mov %%cr2, %0" : "=r"(cr2));
     asm volatile("mov %%cr3, %0" : "=r"(cr3));
     asm volatile("mov %%cr4, %0" : "=r"(cr4));
     
-    uint16_t ds, es, fs, gs;
     asm volatile("mov %%ds, %0" : "=r"(ds));
     asm volatile("mov %%es, %0" : "=r"(es));
     asm volatile("mov %%fs, %0" : "=r"(fs));
     asm volatile("mov %%gs, %0" : "=r"(gs));
-    
+
     uint8_t vec = frame->exception_vector;
     uint64_t err = frame->error_code;
     
@@ -232,16 +260,16 @@ extern "C" void exception_handler(exception_frame* frame) {
            exception_names[vec], vec, err);
 
 	nesting_table[vec]++;
-	if (nesting_table[vec] == EXCEPTIONS_CFG_NESTING_THRESHOLD) {
+	if (nesting_table[vec] == CONFIG_EXCEPTIONS_NESTING_THRESHOLD) {
 		decode_pf_err(err);
-		printf("\033[91mNesting threshold reached at %d %s exceptions...\033[0m", EXCEPTIONS_CFG_NESTING_THRESHOLD, exception_names[vec]);
+		printf("\033[91mNesting threshold reached at %d %s exceptions...\033[0m", CONFIG_EXCEPTIONS_NESTING_THRESHOLD, exception_names[vec]);
 		asm ("cli;hlt");
 	}
 
 	if (vec == 0xE) {
 		decode_pf_err(err);
 #ifdef EXCEPTIONS_CFG_RUN_DEBUGGER
-		debugger(frame->rip);
+		debugger(frame);
 #endif
 	}
 
