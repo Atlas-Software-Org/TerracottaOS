@@ -355,7 +355,7 @@ void irq_set_mask(uint8_t irq) {
 }
 
 __attribute__((interrupt)) void int80_handler(void*) {
-	printf("INT 80h");
+	printf("INT 80h from user proc\n\r");
 }
 
 void initialise() {

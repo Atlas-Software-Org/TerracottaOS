@@ -3,6 +3,7 @@
 #include <limine.h>
 #include "gfx.h"
 #include <drivers/serial/printf.h>
+#include <config.hpp>
 
 __attribute__((section(".limine_requests")))
 volatile struct limine_framebuffer_request fb_request = {
@@ -124,8 +125,10 @@ static uint32_t old_pointer_data[POINTER_SIZE_X * POINTER_SIZE_Y];
 
 __attribute__((hot, always_inline))
 void draw_mouse_pointer(int old_x, int old_y, int x, int y, int button_state_lmb, int button_state_mmb, int button_state_rmb) {
+#ifdef CONFIG_DEBUG_MOUSE
     printf("OLD_X:\t%d\n\rOLD_Y:\t%d\n\rX:   \t%d\n\rY:   \t%d\n\r", old_x, old_y, x, y);
     printf("LMB: %s / MMB: %s / RMB: %s\n\r", button_state_lmb ? "MAKE!" : "BREAK", button_state_mmb ? "MAKE!" : "BREAK", button_state_rmb ? "MAKE!" : "BREAK");
+#endif
 }
 
 void fb_clrscr(int no_cur) {

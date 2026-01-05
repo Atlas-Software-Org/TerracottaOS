@@ -1,9 +1,7 @@
 
 #
-# Test Menu
+# Drivers
 #
-CONFIG_SCHED_USE_SAME_PML4=y
-# end of Test Menu
 
 #
 # PS2 Keyboard
@@ -13,6 +11,12 @@ CONFIG_PS2K_INITIAL_BUF_SIZE=512
 CONFIG_PS2K_ALLOC_BUF_MALLOC=y
 CONFIG_PS2K_ALLOC_BUF=y
 # CONFIG_PS2K_DROP_EVENTS_ON_FAILURE_OR_OVERFLOW is not set
+
+#
+# PS2 Mouse
+#
+# CONFIG_DEBUG_MOUSE is not set
+# end of PS2 Mouse
 # end of PS2 Keyboard
 
 #
@@ -28,6 +32,13 @@ CONFIG_ACPI_VERBOSE=y
 # end of PCI
 
 #
+# PIT
+#
+CONFIG_PIT_FREQUENCY=300
+# end of PIT
+# end of Drivers
+
+#
 # IDT
 #
 
@@ -37,3 +48,10 @@ CONFIG_ACPI_VERBOSE=y
 CONFIG_EXCEPTIONS_NESTING_THRESHOLD=3
 # end of Exceptions
 # end of IDT
+
+#
+# Multitasking
+#
+CONFIG_NUM_PROC=128
+CONFIG_STACK_SIZE=8192
+# end of Multitasking

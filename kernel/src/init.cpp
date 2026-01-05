@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <arch/arch.hpp>
 #include <mem/mem.hpp>
-#include <drivers/timers/pit.hpp>
+#include <drivers/timers/pit/pit.hpp>
 #include <uacpi/uacpi.h>
 #include <uacpi/event.h>
 #include <uacpi/tables.h>
@@ -40,25 +40,31 @@ volatile struct limine_module_request module_request = {
 };
 
 extern "C" void init() {
+	asm ("cli");
     if (module_request.response == nullptr || module_request.response->module_count < 1) {
         asm volatile ("cli;hlt");
     }
 
-    arch::x86_64::cpu::gdt::initialise();
-    arch::x86_64::cpu::idt::initialise();
-    mem::pmm::initialise();
-    mem::vmm::initialise();
-    mem::heap::initialise();
     flanterm_initialise();
-    
     serial::serial_enable();
-    Log::printf_status("OK", "GDT Initialised"); // late
-    Log::printf_status("OK", "IDT Initialised"); // late
-    Log::printf_status("OK", "VMM Initialised"); // late
-    Log::printf_status("OK", "PMM Initialised"); // late
-    Log::printf_status("OK", "Heap Initialised"); // late
     Log::printf_status("OK", "Flanterm Initialised"); // late
     Log::printf_status("OK", "Serial Initialised");
+    
+    arch::x86_64::cpu::gdt::initialise();
+    Log::printf_status("OK", "GDT Initialised");
+
+    arch::x86_64::cpu::idt::initialise();
+    Log::printf_status("OK", "IDT Initialised");
+
+    mem::pmm::initialise();
+    Log::printf_status("OK", "PMM Initialised");
+
+    mem::vmm::initialise();
+    Log::printf_status("OK", "VMM Initialised");
+
+    mem::heap::initialise();
+    Log::printf_status("OK", "Heap Initialised");
+    
     
     drivers::timers::pit::initialise();
     Log::printf_status("OK", "PIT Initialised (FREQ=300)");
@@ -74,13 +80,14 @@ extern "C" void init() {
     //serial::serial_disable();
     Log::printf_status("OK", "Serial Disabled");
 
-    asm("sti");
     
     uacpi_status uacpi_result = uacpi_initialize(0);
     UACPI_ERROR("Initialise", 1);
     
+    asm ("sti");
     uacpi_result = uacpi_namespace_load();
     UACPI_ERROR("namespace loade", 1);
+	asm ("cli");
     
     uacpi_result = uacpi_namespace_initialize();
     UACPI_ERROR("namespace", 0);
@@ -126,14 +133,15 @@ extern "C" void init() {
 	char* exe = (char*)mem::vmm::valloc((s.st_size + 0xFFF) / 0x1000);
 	tmpfs::read(fd, exe, s.st_size);
 
-	run_elf(exe, s.st_size, true);
+	asm ("sti");
 
-	char buf[4096] = {0};
+	//run_elf(exe, s.st_size, true);
+
+	char buf[4096];
     while (1) {
-    	printf("> ");
-    	size_t read = drivers::tty::ldisc::read(true, buf, 4096);
-    	if (read > 0) printf("Read %zu characters: %s\n\r", read, buf);
-        else printf("Nothing written, how lazy...\n\r");
+    	size_t count = drivers::tty::ldisc::read(true, buf, 4096);
+    	if (count > 0) printf("Read %d characters: %s\n\r", count, buf);
+    	else printf("No input\n\r");
         asm volatile("hlt");
     }
     

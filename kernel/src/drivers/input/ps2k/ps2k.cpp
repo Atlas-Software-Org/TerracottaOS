@@ -7,7 +7,7 @@
 #include "ps2k_key_event.hpp"
 #include "ps2k_scancode_map.hpp"
 #include <errno.hpp>
-#include <drivers/timers/pit.hpp>
+#include <drivers/timers/pit/pit.hpp>
 
 namespace drivers::input::ps2k {
 

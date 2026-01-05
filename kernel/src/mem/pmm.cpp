@@ -39,27 +39,27 @@ inline void bitmap_clear(uint64_t index) { bitmap[index / 8] &= ~(1 << (index % 
 inline bool bitmap_test(uint64_t index) { return bitmap[index / 8] & (1 << (index % 8)); }
 
 static inline void membulkset(void* ptr, uint64_t value, size_t bytes) {
-    uint8_t* p = (uint8_t*)ptr;
+	uint8_t* p = (uint8_t*)ptr;
 
-    while (((uintptr_t)p & 7) && bytes) {
-        *p++ = (uint8_t)value;
-        bytes--;
-    }
+	while (((uintptr_t)p & 7) && bytes) {
+		*p++ = (uint8_t)value;
+		bytes--;
+	}
 
-    uint64_t* p64 = (uint64_t*)p;
-    while (bytes >= 8) {
-        *p64++ = value;
-        bytes -= 8;
-    }
+	uint64_t* p64 = (uint64_t*)p;
+	while (bytes >= 8) {
+		*p64++ = value;
+		bytes -= 8;
+	}
 
-    p = (uint8_t*)p64;
-    while (bytes--) {
-        *p++ = (uint8_t)value;
-    }
+	p = (uint8_t*)p64;
+	while (bytes--) {
+		*p++ = (uint8_t)value;
+	}
 }
 
 static void prepare_bitmap(uint64_t mem) {
-	bitmap_size = mem / 8;
+	bitmap_size = mem / PAGE_SIZE / 8;
 
 	segment* best = nullptr;
 	for (int i = 0; i < MAX_SEGMENTS; i++) {
@@ -70,12 +70,31 @@ static void prepare_bitmap(uint64_t mem) {
 	}
 
 	if (!best) {
+		Log::errf("PMM: No suitable segment for bitmap");
 		return;
 	}
 
 	best->is_bitmap = true;
 	bitmap = reinterpret_cast<uint8_t*>(best->base);
 	membulkset(bitmap, 0, bitmap_size);
+
+	uint64_t bitmap_pages = (bitmap_size + (PAGE_SIZE - 1)) / PAGE_SIZE;
+	uint64_t page_offset = 0;
+
+	for (int i = 0; i < MAX_SEGMENTS; i++) {
+		if (&segments[i] == best) {
+			for (uint64_t j = 0; j < bitmap_pages; j++) {
+				bitmap_set(page_offset + j);
+			}
+			best->remaining_bytes -= bitmap_pages * PAGE_SIZE;
+			used_mem += bitmap_pages * PAGE_SIZE;
+			free_mem -= bitmap_pages * PAGE_SIZE;
+			break;
+		}
+		if (!segments[i].is_bitmap && segments[i].length > 0) {
+			page_offset += segments[i].length / PAGE_SIZE;
+		}
+	}
 }
 
 namespace mem::pmm {
@@ -121,10 +140,28 @@ void initialise() {
 		if (e->type != LIMINE_MEMMAP_USABLE || created_segments >= MAX_SEGMENTS)
 			continue;
 
-		uint64_t seg_base = (e->base < MIN_ALLOC_ADDR) ? MIN_ALLOC_ADDR : e->base;
-		uint64_t seg_len  = (e->base < MIN_ALLOC_ADDR) 
-							? (e->length > (MIN_ALLOC_ADDR - e->base) ? e->length - (MIN_ALLOC_ADDR - e->base) : 0) 
-							: e->length;
+		uint64_t seg_base = e->base;
+		uint64_t seg_len = e->length;
+
+		if (seg_base < MIN_ALLOC_ADDR) {
+			if (seg_base + seg_len <= MIN_ALLOC_ADDR) {
+				continue;
+			}
+			seg_len -= (MIN_ALLOC_ADDR - seg_base);
+			seg_base = MIN_ALLOC_ADDR;
+		}
+
+		uint64_t align_offset = seg_base & (PAGE_SIZE - 1);
+		if (align_offset) {
+			seg_base += PAGE_SIZE - align_offset;
+			if (seg_len > PAGE_SIZE - align_offset) {
+				seg_len -= PAGE_SIZE - align_offset;
+			} else {
+				continue;
+			}
+		}
+		seg_len = (seg_len / PAGE_SIZE) * PAGE_SIZE;
+
 		if (seg_len == 0) continue;
 
 		segment* s = &segments[created_segments++];
@@ -136,36 +173,34 @@ void initialise() {
 		total_mem += seg_len;
 	}
 
+	free_mem = total_mem;
 	prepare_bitmap(total_mem);
 	total_pages = total_mem / PAGE_SIZE;
-	free_mem = total_mem;
 }
 
 void* palloc(size_t npages) {
-	if (!bitmap || npages == 0) return nullptr;
+	if (!bitmap || npages == 0) {
+		failed_allocation_count++;
+		return nullptr;
+	}
 
 	uint64_t needed = npages;
 	uint64_t page_offset = 0;
 
 	for (int segid = 0; segid < MAX_SEGMENTS; segid++) {
 		segment* seg = &segments[segid];
-		if (seg->length == 0 || seg->is_bitmap) continue;
-
-		if (seg->base + seg->length <= MIN_ALLOC_ADDR) {
-			page_offset += seg->length / PAGE_SIZE;
+		if (seg->length == 0 || seg->is_bitmap) {
+			if (!seg->is_bitmap && seg->length > 0) {
+				page_offset += seg->length / PAGE_SIZE;
+			}
 			continue;
-		}
-
-		uint64_t seg_start_offset = 0;
-		if (seg->base < MIN_ALLOC_ADDR) {
-			seg_start_offset = (MIN_ALLOC_ADDR - seg->base) / PAGE_SIZE;
 		}
 
 		uint64_t seg_pages = seg->length / PAGE_SIZE;
 		uint64_t found = 0;
 		uint64_t start = 0;
 
-		for (uint64_t j = seg_start_offset; j < seg_pages; j++) {
+		for (uint64_t j = 0; j < seg_pages; j++) {
 			uint64_t global_index = page_offset + j;
 
 			if (!bitmap_test(global_index)) {
@@ -173,14 +208,18 @@ void* palloc(size_t npages) {
 				found++;
 				if (found == needed) {
 					uint64_t start_global = page_offset + start;
-					for (uint64_t k = 0; k < needed; k++) bitmap_set(start_global + k);
+					for (uint64_t k = 0; k < needed; k++) {
+						bitmap_set(start_global + k);
+					}
 
-					used_mem += needed * PAGE_SIZE;
-					free_mem -= needed * PAGE_SIZE;
-					seg->remaining_bytes -= needed * PAGE_SIZE;
+					uint64_t alloc_bytes = needed * PAGE_SIZE;
+					used_mem += alloc_bytes;
+					free_mem -= alloc_bytes;
+					seg->remaining_bytes -= alloc_bytes;
 					allocation_count++;
 
-					return reinterpret_cast<void*>(seg->base + start * PAGE_SIZE);
+					uint64_t phys_addr = seg->base + start * PAGE_SIZE;
+					return reinterpret_cast<void*>(phys_addr);
 				}
 			} else {
 				found = 0;
@@ -195,9 +234,12 @@ void* palloc(size_t npages) {
 }
 
 void free(void* ptr, size_t npages) {
-	if (!bitmap || !ptr || npages == 0) return;
+	if (!bitmap || !ptr || npages == 0) {
+		failed_free_count++;
+		return;
+	}
 
-	uint64_t addr = (uint64_t)mem::vmm::pa_to_va((uint64_t)ptr);
+	uint64_t addr = reinterpret_cast<uint64_t>(ptr);
 
 	if (addr < MIN_ALLOC_ADDR) {
 		Log::errf("PMM: Attempt to free memory below 1 MiB (%p)", ptr);
@@ -207,20 +249,26 @@ void free(void* ptr, size_t npages) {
 
 	uint64_t page_offset = 0;
 	segment* seg = nullptr;
-	int segid = -1;
 
 	for (int i = 0; i < MAX_SEGMENTS; i++) {
-		if (segments[i].length == 0 || segments[i].is_bitmap) continue;
+		if (segments[i].length == 0) continue;
+		
 		uint64_t seg_start = segments[i].base;
 		uint64_t seg_end = seg_start + segments[i].length;
 
 		if (addr >= seg_start && addr < seg_end) {
+			if (segments[i].is_bitmap) {
+				Log::errf("PMM: Attempt to free bitmap segment");
+				failed_free_count++;
+				return;
+			}
 			seg = &segments[i];
-			segid = i;
 			break;
 		}
 
-		page_offset += segments[i].length / PAGE_SIZE;
+		if (!segments[i].is_bitmap) {
+			page_offset += segments[i].length / PAGE_SIZE;
+		}
 	}
 
 	if (!seg) {
@@ -234,70 +282,31 @@ void free(void* ptr, size_t npages) {
 	uint64_t actually_freed = 0;
 
 	for (uint64_t i = 0; i < npages; i++) {
-		if (bitmap_test(global_index + i)) {
-			bitmap_clear(global_index + i);
+		uint64_t idx = global_index + i;
+		if (bitmap_test(idx)) {
+			bitmap_clear(idx);
 			actually_freed += PAGE_SIZE;
 		} else {
+			Log::warnf("PMM: Attempt to free already-free page at index %llu", idx);
 			failed_free_count++;
 		}
 	}
 
-	if (used_mem >= actually_freed)
-		used_mem -= actually_freed;
-	else
-		used_mem = 0;
+	if (actually_freed > 0) {
+		if (used_mem >= actually_freed) {
+			used_mem -= actually_freed;
+		} else {
+			used_mem = 0;
+		}
 
-	free_mem += actually_freed;
-	seg->remaining_bytes += actually_freed;
-	free_count++;
+		free_mem += actually_freed;
+		seg->remaining_bytes += actually_freed;
+		free_count++;
+	}
 }
 
 void* reserve_heap(size_t npages) {
-	if (!bitmap || npages == 0) return nullptr;
-
-	uint64_t needed = npages;
-	uint64_t page_offset = 0;
-
-	for (int segid = 0; segid < MAX_SEGMENTS; segid++) {
-		segment* seg = &segments[segid];
-		if (seg->length == 0 || seg->is_bitmap) continue;
-
-		uint64_t seg_pages = seg->length / PAGE_SIZE;
-		uint64_t found = 0;
-		uint64_t start = 0;
-
-		for (uint64_t j = 0; j < seg_pages; j++) {
-			uint64_t global_index = page_offset + j;
-
-			if (!bitmap_test(global_index)) {
-				if (found == 0) start = j;
-				found++;
-
-				if (found == needed) {
-					uint64_t start_global = page_offset + start;
-
-					for (uint64_t k = 0; k < needed; k++) {
-						bitmap_set(start_global + k);
-					}
-
-					used_mem += needed * PAGE_SIZE;
-					free_mem -= needed * PAGE_SIZE;
-					seg->remaining_bytes -= needed * PAGE_SIZE;
-					allocation_count++;
-
-					return reinterpret_cast<void*>(seg->base + start * PAGE_SIZE);
-				}
-			} else {
-				found = 0;
-			}
-		}
-
-		page_offset += seg_pages;
-	}
-
-	failed_allocation_count++;
-	return nullptr;
+	return palloc(npages);
 }
 
 }
-

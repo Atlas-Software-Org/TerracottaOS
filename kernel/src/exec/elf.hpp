@@ -66,5 +66,6 @@ struct Elf64_Rela {
 };
 
 void run_elf(void* base, size_t filesz, bool user);
+void* get_elf_entry_point_user(void* elf_base, size_t elf_file_size);
 
 #endif

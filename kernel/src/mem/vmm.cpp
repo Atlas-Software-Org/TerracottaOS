@@ -23,13 +23,19 @@ static inline uint64_t get_pt_index(uint64_t va)   { return (va >> 12) & 0x1FF; 
 static uint64_t* ensure_table_exists(uint64_t* parent, uint64_t index, bool user) {
     if (parent[index] & PAGE_PRESENT) {
         uint64_t* table = reinterpret_cast<uint64_t*>(pa_to_va(parent[index] & ~0xFFF));
+        
         if (user && !(parent[index] & PAGE_USER)) {
             parent[index] |= PAGE_USER;
         }
+        
         return table;
     }
     
     uint64_t* new_table = reinterpret_cast<uint64_t*>(valloc(1));
+    if (!new_table) {
+        return nullptr;
+    }
+    
     mem::memset(new_table, 0, 0x1000);
     
     uint64_t flags = PAGE_PRESENT | PAGE_RW;
@@ -91,10 +97,12 @@ void print_mem() {}
 
 void* valloc(size_t npages) {
     void* page = mem::pmm::palloc(npages);
+    if (!page) return nullptr;
     return reinterpret_cast<void*>(pa_to_va(reinterpret_cast<uint64_t>(page)));
 }
 
 void free(void* ptr, size_t npages) {
+    if (!ptr) return;
     uint64_t phys = va_to_pa(reinterpret_cast<uint64_t>(ptr));
     mem::pmm::free(reinterpret_cast<void*>(phys), npages);
 }
@@ -119,7 +127,8 @@ bool is_mapped(void* vaddr) {
 }
 
 uint64_t mmap(void* paddr, void* vaddr, size_t npages, uint64_t attributes) {
-    printf("mmap(%p, %p, %zu, %zu);\n\r", paddr, vaddr, npages, attributes);
+    if (npages == 0) return 0;
+    
     uint64_t va = reinterpret_cast<uint64_t>(vaddr);
     uint64_t pa = reinterpret_cast<uint64_t>(paddr);
     uint64_t first_entry = 0;
@@ -131,8 +140,22 @@ uint64_t mmap(void* paddr, void* vaddr, size_t npages, uint64_t attributes) {
         uint64_t pml4_idx = get_pml4_index(va);
 
         uint64_t* pdpt = ensure_table_exists(pml4, pml4_idx, is_user);
-        uint64_t* pd   = ensure_table_exists(pdpt, get_pdpt_index(va), is_user);
-        uint64_t* pt   = ensure_table_exists(pd, get_pd_index(va), is_user);
+        if (!pdpt) {
+            printf("Failed to allocate PDPT for VA %p\n\r", (void*)va);
+            return 0;
+        }
+        
+        uint64_t* pd = ensure_table_exists(pdpt, get_pdpt_index(va), is_user);
+        if (!pd) {
+            printf("Failed to allocate PD for VA %p\n\r", (void*)va);
+            return 0;
+        }
+        
+        uint64_t* pt = ensure_table_exists(pd, get_pd_index(va), is_user);
+        if (!pt) {
+            printf("Failed to allocate PT for VA %p\n\r", (void*)va);
+            return 0;
+        }
 
         uint64_t flags = PAGE_PRESENT | PAGE_RW;
         if (is_user) {
@@ -141,7 +164,9 @@ uint64_t mmap(void* paddr, void* vaddr, size_t npages, uint64_t attributes) {
 
         pt[get_pt_index(va)] = (pa & ~0xFFF) | flags;
 
-        if (i == 0) first_entry = pt[get_pt_index(va)];
+        if (i == 0) {
+            first_entry = pt[get_pt_index(va)];
+        }
 
         invlpg(va);
     }

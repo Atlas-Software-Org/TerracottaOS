@@ -868,13 +868,22 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#include <proc/spinlocks.h>
+
+struct spinlock printf_lock = {
+	.name = "PRINTF",
+	.locked = 0
+};
+
 int printf_(const char* format, ...)
 {
+  c_acquire_spinlock(&printf_lock);
   va_list va;
   va_start(va, format);
   char buffer[1];
   const int ret = _vsnprintf(_out_char, buffer, (size_t)-1, format, va);
   va_end(va);
+  c_release_spinlock(&printf_lock);
   return ret;
 }
 

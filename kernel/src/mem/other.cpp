@@ -46,6 +46,7 @@ void* memmove(void* dest, const void* src, size_t count) {
 int memcmp(const void* ptr1, const void* ptr2, size_t count) {
     const unsigned char* a = static_cast<const unsigned char*>(ptr1);
     const unsigned char* b = static_cast<const unsigned char*>(ptr2);
+    if (!a || !b) return -1;
     for (size_t i = 0; i < count; i++) {
         if (a[i] != b[i])
             return (a[i] < b[i]) ? -1 : 1;

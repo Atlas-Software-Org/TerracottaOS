@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstdarg>
 #include <arch/arch.hpp>
-#include <drivers/timers/pit.hpp>
+#include <drivers/timers/pit/pit.hpp>
 #include <panic.hpp>
 #include <cstdint>
 

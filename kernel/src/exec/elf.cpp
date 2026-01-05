@@ -120,16 +120,17 @@ static bool map_segment_pages(uint64_t segment_base, size_t segment_size, uint64
         
         void* physical_page = mem::pmm::palloc(1);
         if (!physical_page) {
-        	Log::errf("Failed to allocate phys memory");
+            Log::errf("Failed to allocate physical memory for segment");
             return false;
         }
         
         uint64_t phys_as_va = mem::vmm::pa_to_va(reinterpret_cast<uint64_t>(physical_page));
         mem::memset(reinterpret_cast<void*>(phys_as_va), 0, PAGE_SIZE);
         
-        uint64_t result = mem::vmm::mmap(physical_page, physical_page, 1, page_flags | PAGE_USER);
+        uint64_t result = mem::vmm::mmap(physical_page, virtual_addr, 1, page_flags);
         if (result == 0) {
-        	Log::errf("Failed to map page");
+            Log::errf("Failed to map page at virtual address %p", virtual_addr);
+            mem::pmm::free(physical_page, 1);
             return false;
         }
     }
@@ -146,7 +147,7 @@ static bool load_elf_segment(const Elf64_Phdr* phdr, uint64_t load_base,
     uint64_t page_flags = convert_flags_to_page_flags(phdr->p_flags, user_mode);
     
     if (!map_segment_pages(segment_vaddr, phdr->p_memsz, page_flags)) {
-    	Log::errf("Failed to map segment");
+        Log::errf("Failed to map segment pages");
         return false;
     }
     
@@ -170,39 +171,41 @@ static void* allocate_user_stack(size_t num_pages) {
         num_pages = 2;
     }
     
-    void* last_page_phys = nullptr;
+    uint64_t stack_bottom = 0x00007FFFFFFFE000ULL - (num_pages * PAGE_SIZE);
     
     for (size_t i = 0; i < num_pages; i++) {
         void* phys_page = mem::pmm::palloc(1);
         if (!phys_page) {
+            Log::errf("Failed to allocate physical page for stack");
             return nullptr;
         }
         
         uint64_t phys_va = mem::vmm::pa_to_va(reinterpret_cast<uint64_t>(phys_page));
-        uint64_t result = mem::vmm::mmap(phys_page, reinterpret_cast<void*>(phys_va), 1, 
+        mem::memset(reinterpret_cast<void*>(phys_va), 0, PAGE_SIZE);
+        
+        void* stack_vaddr = reinterpret_cast<void*>(stack_bottom + i * PAGE_SIZE);
+        uint64_t result = mem::vmm::mmap(phys_page, stack_vaddr, 1, 
                                         PAGE_PRESENT | PAGE_RW | PAGE_USER);
         if (result == 0) {
+            Log::errf("Failed to map stack page");
+            mem::pmm::free(phys_page, 1);
             return nullptr;
         }
-        
-        last_page_phys = phys_page;
     }
     
-    return reinterpret_cast<void*>(
-        mem::vmm::pa_to_va(reinterpret_cast<uint64_t>(last_page_phys)) + PAGE_SIZE
-    );
+    return reinterpret_cast<void*>(stack_bottom + num_pages * PAGE_SIZE);
 }
 
 void run_elf(void* elf_base, size_t elf_file_size, bool user_mode) {
     auto* ehdr = reinterpret_cast<Elf64_Ehdr*>(elf_base);
     
     if (!is_valid_elf_magic(ehdr)) {
-    	Log::errf("Executable header is invalid");
+        Log::errf("Executable header is invalid");
         return;
     }
     
     if (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) {
-    	Log::errf("Executable is neither ET_EXEC nor ET_DYN");
+        Log::errf("Executable is neither ET_EXEC nor ET_DYN");
         return;
     }
     
@@ -215,7 +218,7 @@ void run_elf(void* elf_base, size_t elf_file_size, bool user_mode) {
     for (uint16_t i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type == PT_LOAD) {
             if (!load_elf_segment(&phdrs[i], load_base, elf_data, user_mode)) {
-            	Log::errf("Failed to load segments");
+                Log::errf("Failed to load segment %u", i);
                 return;
             }
         }
@@ -229,9 +232,12 @@ void run_elf(void* elf_base, size_t elf_file_size, bool user_mode) {
     
     void* stack_top = allocate_user_stack(2);
     if (!stack_top) {
-    	Log::errf("Failed to allocate stack!");
+        Log::errf("Failed to allocate user stack");
         return;
     }
+    
+    Log::infof("ELF loaded: entry=%p stack=%p user_mode=%d", 
+               (void*)entry_point, stack_top, user_mode);
     
     if (user_mode) {
         arch::x86_64::ringctl::execute_ring3(
@@ -253,4 +259,50 @@ void run_elf(void* elf_base, size_t elf_file_size, bool user_mode) {
             : "memory"
         );
     }
+}
+
+void* get_elf_entry_point_user(void* elf_base, size_t elf_file_size) {
+    auto* ehdr = reinterpret_cast<Elf64_Ehdr*>(elf_base);
+    
+    if (!is_valid_elf_magic(ehdr)) {
+        Log::errf("Executable header is invalid");
+        return nullptr;
+    }
+    
+    if (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) {
+        Log::errf("Executable is neither ET_EXEC nor ET_DYN");
+        return nullptr;
+    }
+    
+    const uint8_t* elf_data = reinterpret_cast<const uint8_t*>(elf_base);
+    Elf64_Phdr* phdrs = (Elf64_Phdr*)(elf_data + ehdr->e_phoff);
+    
+    uint64_t load_base = 0;
+    bool is_pie = (ehdr->e_type == ET_DYN);
+    
+    for (uint16_t i = 0; i < ehdr->e_phnum; i++) {
+        if (phdrs[i].p_type == PT_LOAD) {
+            if (!load_elf_segment(&phdrs[i], load_base, elf_data, true)) {
+                Log::errf("Failed to load segment %u", i);
+                return nullptr;
+            }
+        }
+    }
+    
+    if (is_pie) {
+        process_relocations(load_base, phdrs, ehdr->e_phnum);
+    }
+    
+    uint64_t entry_point = is_pie ? (load_base + ehdr->e_entry) : ehdr->e_entry;
+    
+    void* stack_top = allocate_user_stack(2);
+    if (!stack_top) {
+        Log::errf("Failed to allocate user stack");
+        return nullptr;
+    }
+    
+    Log::infof("ELF loaded: entry=%p stack=%p user_mode=%d", 
+               (void*)entry_point, stack_top, true);
+    
+    return reinterpret_cast<void*>(entry_point);
 }
