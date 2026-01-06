@@ -20,6 +20,7 @@
 #include <drivers/tty/ldisc/ldisc.hpp>
 #include <drivers/input/ps2m/ps2m.hpp>
 #include <dbg/dbg.hpp>
+#include <arch/x86_64/syscall/syscalls/handlers.hpp>
 
 #define UACPI_ERROR(name, isinit) \
 if (uacpi_unlikely_error(uacpi_result)) { \
@@ -124,6 +125,9 @@ extern "C" void init() {
 	drivers::tty::ldisc::initialise();
 	Log::printf_status("OK", "Line Discipline Initialised");
 
+	size_t nsc = initialise_syscall_handlers();
+	Log::printf_status("OK", "Syscall handlers Initialised, there are %zu valid syscalls", nsc);
+
 	int fd = tmpfs::open("/initrd/init", O_RDWR);
 	printf("Opened 'init', fd = %d\n\r", fd);
 
@@ -135,13 +139,9 @@ extern "C" void init() {
 
 	asm ("sti");
 
-	//run_elf(exe, s.st_size, true);
+	run_elf(exe, s.st_size, true);
 
-	char buf[4096];
     while (1) {
-    	size_t count = drivers::tty::ldisc::read(true, buf, 4096);
-    	if (count > 0) printf("Read %d characters: %s\n\r", count, buf);
-    	else printf("No input\n\r");
         asm volatile("hlt");
     }
     

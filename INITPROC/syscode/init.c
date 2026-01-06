@@ -1,5 +1,7 @@
+#include <sys/syscalls.h>
+
 void _start() {
-	asm ("int $0x80");
+	sys_test(123);
 
     while (1) {
     }

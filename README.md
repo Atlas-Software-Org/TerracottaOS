@@ -27,7 +27,7 @@ Terra is the operating system I'm planning to use terrakernel for.
 - [ ] Scheduling and multithreading (delayed)
 - [x] Switching to userspace
 - [ ] Write some basic syscalls
-- [ ] Load x86_64 ELF binaries, static and relocatable (copy from old version of TK) (delayed)
+- [x] Load x86_64 ELF binaries, static and relocatable (copy from old version of TK) (delayed)
 - [ ] End of x86_64 stuff (almost) (delayed)
 
 ### Other

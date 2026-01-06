@@ -11,13 +11,13 @@ CONFIG_PS2K_INITIAL_BUF_SIZE=512
 CONFIG_PS2K_ALLOC_BUF_MALLOC=y
 CONFIG_PS2K_ALLOC_BUF=y
 # CONFIG_PS2K_DROP_EVENTS_ON_FAILURE_OR_OVERFLOW is not set
+# end of PS2 Keyboard
 
 #
 # PS2 Mouse
 #
 # CONFIG_DEBUG_MOUSE is not set
 # end of PS2 Mouse
-# end of PS2 Keyboard
 
 #
 # ACPI
@@ -50,8 +50,7 @@ CONFIG_EXCEPTIONS_NESTING_THRESHOLD=3
 # end of IDT
 
 #
-# Multitasking
+# Syscalls
 #
-CONFIG_NUM_PROC=128
-CONFIG_STACK_SIZE=8192
-# end of Multitasking
+CONFIG_ALLOW_SYSCALL_REGISTRATION_OVERRIDE=y
+# end of Syscalls

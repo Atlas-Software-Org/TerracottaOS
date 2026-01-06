@@ -12,6 +12,10 @@ HOST_CPPFLAGS := -g -O0 -pipe
 HOST_LDFLAGS := -g
 HOST_LIBS :=
 
+INIT_FLAGS := -ffreestanding -nolibc -nostdlib -isystem ./INITPROC/sysheaders/
+INIT_SOURCE := ./INITPROC/syscode/init.c
+INIT_LINKER_SCRIPT := ./INITPROC/syscode/linker.ld
+
 .PHONY: all-iso
 all-iso: $(IMAGE_NAME).iso
 
@@ -25,6 +29,12 @@ initrd:
 	rm -rf kernel/bin-$(ARCH)/initrd.img
 	cd initrd && tar -cf "../kernel/bin-$(ARCH)/initrd.img" -H ustar ./*
 	@echo "initrd.img created at kernel/bin-$(ARCH)/initrd.img"
+
+.PHONY: compile_init
+compile_init:
+	@gcc $(INIT_SOURCE) -o init $(INIT_FLAGS) -T $(INIT_LINKER_SCRIPT)
+	@mv init ./initrd/init
+	@echo "Created init executable"
 
 .PHONY: run
 run: run-$(ARCH)
@@ -83,7 +93,7 @@ kernel/.deps-obtained:
 	./kernel/get-deps
 
 .PHONY: kernel
-kernel: kernel/.deps-obtained genconfig
+kernel: kernel/.deps-obtained genconfig compile_init initrd
 	$(MAKE) -C kernel
 
 $(IMAGE_NAME).iso: limine/limine kernel initrd

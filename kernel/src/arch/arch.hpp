@@ -28,6 +28,8 @@ namespace cpu {
 		void load_tss();
 		void load_gdt();
 		void initialise();
+
+		void update_stack(uint64_t new_rsp = 0);
 	}
 
 	namespace idt {

@@ -1,23 +1,20 @@
-ENTRY(_start)
-
 SECTIONS
 {
     . = 0x400000;
-    .text : {
+    .text : ALIGN(0x1000) {
         *(.text*)
     }
 
-    . = 0x401000;
-    .bss : {
-        *(COMMON)
-        *(.bss*)
-    }
-
-    . = 0x402000;
-    .rodata : {
+    .rodata : ALIGN(0x1000) {
         *(.rodata*)
     }
-    .data : {
+
+    .data : ALIGN(0x1000) {
         *(.data*)
+    }
+
+    .bss : ALIGN(0x1000) {
+        *(COMMON)
+        *(.bss*)
     }
 }

@@ -8,7 +8,7 @@ namespace arch::x86_64::cpu::gdt {
 alignas(16) static gdt_t gdt;
 alignas(16) static gdtr_t gdtr;
 alignas(16) static tss_t tss;
-static uint8_t kernel_stack[4096];
+static uint8_t kernel_stack[8192];
 
 static const gdt_t default_gdt = {
     {0, 0, 0, 0, 0, 0},            // Null
@@ -54,6 +54,15 @@ void initialise() {
 
     _tss_rsp = tss.rsp0;
     _tss_rbp = tss.rsp0;
+}
+
+void update_stack(uint64_t new_rsp) {
+	uint64_t rsp = new_rsp;
+	if (new_rsp == 0) {
+		asm volatile ("mov %%rsp, %0" : "=r"(rsp));
+	}
+
+	tss.rsp0 = tss.ist1 = rsp;
 }
 
 }

@@ -69,3 +69,20 @@ config EXCEPTIONS_NESTING_THRESHOLD
 endmenu
 
 endmenu
+
+menu "Syscalls"
+
+config ALLOW_SYSCALL_REGISTRATION_OVERRIDE
+    bool "Allow syscall registration override"
+    default y
+    help
+      Allow a system call to be registered even if its syscall
+      number (vector) is already in use
+
+      This permits runtime replacement of syscall handlers
+
+config CONFIG_VERBOSE_SYSCALL_CREATION
+	bool "Verbose Logging"
+	default y
+
+endmenu

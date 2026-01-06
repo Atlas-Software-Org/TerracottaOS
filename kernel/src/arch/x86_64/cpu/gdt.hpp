@@ -64,6 +64,8 @@ void initialise();
 void load_gdt();
 void load_tss();
 
+void update_stack(uint64_t new_rsp);
+
 }
 
 #endif /* GDT_HPP */
